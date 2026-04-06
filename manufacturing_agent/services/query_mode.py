@@ -18,7 +18,7 @@ from .request_context import (
 
 def has_explicit_date_reference(query_text: str) -> bool:
     normalized = normalize_text(query_text)
-    if any(token in normalized for token in ["?ㅻ뒛", "?댁젣", "today", "yesterday"]):
+    if any(token in normalized for token in ["오늘", "어제", "today", "yesterday"]):
         return True
     return bool(re.search(r"\b20\d{6}\b", str(query_text or "")))
 
@@ -51,13 +51,26 @@ def needs_post_processing(
 def looks_like_new_data_request(query_text: str) -> bool:
     normalized = normalize_text(query_text)
     retrieval_keys = pick_retrieval_tools(query_text)
-    retrieval_tokens = ["?앹궛", "紐⑺몴", "遺덈웾", "?ㅻ퉬", "媛?숇쪧", "wip", "?섏쑉", "???", "?ㅽ겕??", "?덉떆??", "lot", "議고쉶"]
+    retrieval_tokens = [
+        "생산",
+        "목표",
+        "불량",
+        "설비",
+        "가동률",
+        "wip",
+        "수율",
+        "hold",
+        "스크랩",
+        "레시피",
+        "lot",
+        "조회",
+    ]
 
     if has_explicit_date_reference(query_text):
         return True
     if len(retrieval_keys) >= 2:
         return True
-    if retrieval_keys and any(token in normalized for token in ["議고쉶", "?곗씠??", "蹂댁뿬", "?뚮젮"]):
+    if retrieval_keys and any(token in normalized for token in ["조회", "데이터", "현황", "새로"]):
         return True
     return any(token in normalized for token in retrieval_tokens) and not needs_post_processing(query_text)
 
@@ -81,14 +94,13 @@ def prune_followup_params(user_input: str, extracted_params: Dict[str, Any]) -> 
     explicit_filter_intent = any(
         token in normalized
         for token in [
-            "留?",
-            "?꾪꽣",
-            "議곌굔",
-            "怨듭젙",
-            "怨듭젙踰덊샇",
+            "조건",
+            "필터",
+            "공정",
+            "공정번호",
             "oper",
             "pkg",
-            "?쇱씤",
+            "라인",
             "mode",
             "den",
             "tech",

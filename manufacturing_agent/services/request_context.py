@@ -6,7 +6,6 @@ file from becoming a giant utility dump.
 """
 
 import json
-import re
 from typing import Any, Dict, List
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -39,21 +38,21 @@ APPLIED_PARAM_FIELDS = [
 ]
 
 POST_PROCESSING_KEYWORDS = [
-    "?곸쐞",
-    "?섏쐞",
-    "?뺣젹",
-    "鍮꾧탳",
-    "李⑥씠",
-    "?붿빟",
-    "?됯퇏",
-    "?⑷퀎",
-    "鍮꾩쑉",
-    "?ъ꽦瑜?",
-    "異붿씠",
-    "?쒖쐞",
-    "紐⑸줉",
+    "비교",
+    "정렬",
+    "순위",
+    "상위",
+    "하위",
+    "요약",
+    "집계",
+    "그룹",
+    "그룹핑",
+    "목록",
+    "추세",
+    "분석",
+    "기준",
+    "별",
     "list",
-    "?녿뒗",
     "top",
     "rank",
     "group by",
@@ -74,14 +73,14 @@ def get_llm_for_task(task: str, temperature: float = 0.0):
 
 def build_recent_chat_text(chat_history: List[Dict[str, str]], max_messages: int = 6) -> str:
     if not chat_history:
-        return "(?댁쟾 ????놁쓬)"
+        return "(최근 대화 없음)"
 
     lines = []
     for message in chat_history[-max_messages:]:
         content = str(message.get("content", "")).strip()
         if content:
             lines.append(f"- {message.get('role', 'unknown')}: {content}")
-    return "\n".join(lines) if lines else "(?댁쟾 ????놁쓬)"
+    return "\n".join(lines) if lines else "(최근 대화 없음)"
 
 
 def get_current_table_columns(current_data: Dict[str, Any] | None) -> List[str]:
@@ -164,15 +163,15 @@ def normalize_filter_value(value: Any) -> Any:
 def user_explicitly_mentions_filter(field_name: str, user_input: str) -> bool:
     normalized = normalize_text(user_input)
     keyword_map = {
-        "date": ["?ㅻ뒛", "?댁젣", "date", "?쇱옄", "?좎쭨"],
-        "process_name": ["怨듭젙", "process", "wb", "da", "wet", "lt", "bg", "hs", "ws", "sat", "fcb"],
-        "oper_num": ["oper", "怨듭젙踰덊샇", "operation"],
+        "date": ["오늘", "어제", "date", "일자", "날짜"],
+        "process_name": ["공정", "process", "wb", "da", "wet", "lt", "bg", "hs", "ws", "sat", "fcb"],
+        "oper_num": ["oper", "공정번호", "operation"],
         "pkg_type1": ["pkg", "fcbga", "lfbga"],
         "pkg_type2": ["stack", "odp", "16dp", "sdp"],
-        "product_name": ["?쒗뭹", "product", "hbm", "3ds", "auto"],
-        "line_name": ["?쇱씤", "line"],
+        "product_name": ["제품", "product", "hbm", "3ds", "auto"],
+        "line_name": ["라인", "line"],
         "mode": ["mode", "ddr", "lpddr"],
-        "den": ["den", "?⑸웾", "256g", "512g", "1t"],
+        "den": ["den", "용량", "256g", "512g", "1t"],
         "tech": ["tech", "lc", "fo", "fc"],
         "lead": ["lead"],
         "mcp_no": ["mcp"],
@@ -268,8 +267,8 @@ Return only:
 def build_unknown_retrieval_message() -> str:
     available_labels = list_available_dataset_labels()
     if not available_labels:
-        return "議고쉶 媛?ν븳 ?곗씠?곗뀑 ?뺣낫瑜??꾩쭅 遺덈윭?ㅼ? 紐삵뻽?듬땲?? 吏덈Ц ?쒗쁽??議곌툑 ??援ъ껜?곸쑝濡?諛붽퓭 二쇱꽭??"
-    return "?대뼡 ?곗씠?곕? 議고쉶?좎? ?꾩쭅 ?먮떒?섏? 紐삵뻽?듬땲?? ?꾩옱 ?깅줉??議고쉶 ??곸? " + ", ".join(available_labels) + " ?낅땲??"
+        return "질문과 맞는 데이터셋을 바로 찾지 못했습니다. 어떤 데이터를 보고 싶은지 조금 더 구체적으로 말씀해 주세요."
+    return "질문과 맞는 데이터셋을 바로 찾지 못했습니다. 현재 조회 가능한 데이터는 " + ", ".join(available_labels) + " 입니다."
 
 
 def extract_text_from_response(content: Any) -> str:

@@ -14,8 +14,8 @@ from .request_context import raw_dataset_key
 KNOWN_DIMENSION_COLUMNS = [
     "WORK_DT",
     "OPER_NAME",
-    "怨듭젙援?",
-    "?쇱씤",
+    "공정군",
+    "라인",
     "MODE",
     "DEN",
     "TECH",
@@ -49,9 +49,9 @@ LIKELY_METRIC_COLUMNS = {
     "scrap_qty",
     "recipe_temp",
     "recipe_pressure",
-    "?섎웾",
-    "嫄댁닔",
-    "湲덉븸",
+    "불량수량",
+    "가동률",
+    "재공수량",
 }
 
 
@@ -203,7 +203,7 @@ def select_default_join_type(
 
     if should_exclude_date_from_join(tool_results):
         return "outer"
-    if any(token in normalized_query for token in ["鍮꾧탳", "李⑥씠", "?녿뒗", "紐⑸줉"]):
+    if any(token in normalized_query for token in ["포함", "유지", "남겨", "left"]):
         return "left"
 
     selected_dataset_keys = {raw_dataset_key(result.get("dataset_key", "")) for result in tool_results}
@@ -340,7 +340,7 @@ def build_analysis_base_table(tool_results: List[Dict[str, Any]], user_input: st
         return {
             "success": False,
             "tool_name": "analysis_base_table",
-            "error_message": "遺꾩꽍??湲곗큹 ?뚯씠釉붿쓣 留뚮뱾 ???덈뒗 議고쉶 寃곌낵媛 ?놁뒿?덈떎.",
+            "error_message": "분석용 기준 테이블을 만들 수 있는 데이터가 없습니다.",
             "data": [],
         }
 
@@ -349,7 +349,7 @@ def build_analysis_base_table(tool_results: List[Dict[str, Any]], user_input: st
         return {
             "success": False,
             "tool_name": "analysis_base_table",
-            "error_message": "?щ윭 ?곗씠?곕? 寃고빀??怨듯넻 湲곗???李얠? 紐삵뻽?듬땲??",
+            "error_message": "공통 결합 기준이 부족해 데이터를 안전하게 병합할 수 없습니다.",
             "data": [],
         }
 
@@ -365,7 +365,7 @@ def build_analysis_base_table(tool_results: List[Dict[str, Any]], user_input: st
             return {
                 "success": False,
                 "tool_name": "analysis_base_table",
-                "error_message": "?щ윭 ?곗씠?곕? 寃고빀??怨듯넻 湲곗???李얠? 紐삵뻽?듬땲??",
+                "error_message": "공통 결합 기준이 부족해 데이터를 안전하게 병합할 수 없습니다.",
                 "data": [],
             }
 
@@ -383,10 +383,10 @@ def build_analysis_base_table(tool_results: List[Dict[str, Any]], user_input: st
                 "success": False,
                 "tool_name": "analysis_base_table",
                 "error_message": (
-                    "怨듯넻 寃고빀 湲곗???異⑸텇?섏? ?딆븘 ?덉쟾?섍쾶 蹂묓빀?????놁뒿?덈떎. "
-                    f"`{step['left_dataset']}`? `{step['right_dataset']}`瑜??⑹튂湲??꾪빐 "
-                    f"`{join_preview}` 湲곗???癒쇱? ?쒕룄?덇퀬, "
-                    f"`{tried_preview}`源뚯? ?뺤옣?덉?留??ъ쟾??N:M 愿怨꾩??듬땲??"
+                    "데이터를 병합하는 과정에서 안전하지 않은 N:M 결합이 감지되었습니다. "
+                    f"`{step['left_dataset']}` 와 `{step['right_dataset']}` 를 "
+                    f"`{join_preview}` 기준으로 묶으려 했지만 중복이 많았습니다. "
+                    f"추가로 `{tried_preview}` 까지 검토했지만 여전히 N:M 병합이라 중단했습니다."
                 ),
                 "data": [],
             }
@@ -410,7 +410,7 @@ def build_analysis_base_table(tool_results: List[Dict[str, Any]], user_input: st
         "success": True,
         "tool_name": "analysis_base_table",
         "data": merged_df.to_dict(orient="records"),
-        "summary": f"蹂듭닔 ?곗씠?곗뀑 蹂묓빀 寃곌낵: {', '.join(source_names)}, 珥?{len(merged_df)}嫄?",
+        "summary": f"다중 데이터셋 병합 결과: {', '.join(source_names)}, 총 {len(merged_df)}건",
         "source_tool_names": source_names,
         "join_columns": applied_join_columns,
         "merge_notes": merge_notes,
@@ -423,9 +423,9 @@ def build_multi_dataset_overview(tool_results: List[Dict[str, Any]]) -> Dict[str
     for result in tool_results:
         overview_rows.append(
             {
-                "?곗씠?곗뀑": result.get("dataset_label", result.get("dataset_key", "")),
-                "?됱닔": len(result.get("data", [])) if isinstance(result.get("data"), list) else 0,
-                "?붿빟": result.get("summary", ""),
+                "데이터셋": result.get("dataset_label", result.get("dataset_key", "")),
+                "행수": len(result.get("data", [])) if isinstance(result.get("data"), list) else 0,
+                "요약": result.get("summary", ""),
             }
         )
 
@@ -433,5 +433,5 @@ def build_multi_dataset_overview(tool_results: List[Dict[str, Any]]) -> Dict[str
         "success": True,
         "tool_name": "multi_dataset_overview",
         "data": overview_rows,
-        "summary": f"蹂듭닔 ?곗씠?곗뀑 議고쉶 ?꾨즺: 珥?{len(overview_rows)}媛?",
+        "summary": f"다중 데이터셋 조회 결과: 총 {len(overview_rows)}개",
     }

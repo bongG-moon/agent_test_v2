@@ -47,15 +47,15 @@ def build_dataset_specific_hints(data: List[Dict[str, Any]], query_text: str) ->
         hints.append("- Average `hold_hours` for average hold-time questions.")
     if "avg_wait_minutes" in columns:
         hints.append("- Average `avg_wait_minutes` for waiting-time questions.")
-    if "?곹깭" in columns:
-        hints.append("- Use `?곹깭` for status or abnormal-state summaries.")
+    if "상태" in columns:
+        hints.append("- Use `상태` for status or abnormal-state summaries.")
     if "defect_rate" in columns:
         hints.append("- Prefer `defect_rate` for defect-rate questions.")
-    if "二쇱슂遺덈웾?좏삎" in columns:
-        hints.append("- Use `二쇱슂遺덈웾?좏삎` when the user asks for top defect case.")
+    if "주요불량유형" in columns:
+        hints.append("- Use `주요불량유형` when the user asks for the top defect case.")
     if "production" in columns and "target" in columns and ("achievement" in lower_query or "달성" in query_text or "목표" in query_text):
         hints.append("- Calculate achievement rate as `production / target`.")
-    if "avg_wait_minutes" in columns and "?곹깭" in columns and "hold lot" in lower_query:
+    if "avg_wait_minutes" in columns and "상태" in columns and "hold lot" in lower_query:
         hints.append("- If both average wait time and hold-lot count are requested, include them in the same grouped table.")
 
     return "\n".join(hints)
@@ -158,7 +158,7 @@ Helpful examples:
   result = grouped
 - Status flag:
   result = df.copy()
-  result['hold_abnormal_flag'] = result['?곹깭'].isin(['HOLD', 'REWORK']).map({{True: 'abnormal', False: 'normal'}})
+  result['hold_abnormal_flag'] = result['상태'].isin(['HOLD', 'REWORK']).map({{True: 'abnormal', False: 'normal'}})
 
 Return this schema:
 {{

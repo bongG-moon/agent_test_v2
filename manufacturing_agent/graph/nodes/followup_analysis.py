@@ -9,7 +9,7 @@ def followup_analysis_node(state: AgentGraphState) -> AgentGraphState:
     if not isinstance(current_data, dict):
         return {
             "result": {
-                "response": "?꾩옱 ?꾩냽 遺꾩꽍???ъ슜???곗씠?곌? ?놁뒿?덈떎. 癒쇱? ?곗씠?곕? 議고쉶??二쇱꽭??",
+                "response": "현재 분석할 데이터가 없습니다. 먼저 데이터를 조회해 주세요.",
                 "tool_results": [],
                 "current_data": current_data,
                 "extracted_params": state.get("extracted_params", {}),

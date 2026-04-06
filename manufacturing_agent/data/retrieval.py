@@ -350,13 +350,13 @@ def _apply_signal_overrides(dataset_key: str, row: Dict[str, Any]) -> Dict[str, 
     elif dataset_key == "target" and process_name == "D/A3" and mode == "DDR5":
         row["target"] = 3600 if den == "512G" else 3400
     elif dataset_key == "equipment" and process_name == "D/A3" and mode == "DDR5":
-        row["媛?숇쪧"] = 82.0
+        row["가동률"] = 82.0
         row["actual_hours"] = 19.7
-        row["鍮꾧??숈궗??"] = "vision align fail"
+        row["비가동사유"] = "vision align fail"
     elif dataset_key == "wip" and process_name == "D/A3" and mode == "DDR5":
-        row["?ш났?섎웾"] = 2100
+        row["재공수량"] = 2100
         row["avg_wait_minutes"] = 185
-        row["?곹깭"] = "HOLD"
+        row["상태"] = "HOLD"
     elif dataset_key == "hold" and process_name == "D/A3" and mode == "DDR5":
         row["hold_qty"] = 980
         row["hold_reason"] = "recipe approval hold"
@@ -386,7 +386,7 @@ def get_production_data(params: Dict[str, Any]) -> Dict[str, Any]:
         "success": True,
         "tool_name": "get_production_data",
         "data": rows,
-        "summary": f"珥?{len(rows)}嫄? 珥??앹궛??{format_summary_quantity(total)}",
+        "summary": f"총 {len(rows)}건, 총 생산량 {format_summary_quantity(total)}",
     }
 
 
@@ -405,7 +405,7 @@ def get_target_data(params: Dict[str, Any]) -> Dict[str, Any]:
         "success": True,
         "tool_name": "get_target_data",
         "data": rows,
-        "summary": f"珥?{len(rows)}嫄? 珥?紐⑺몴??{format_summary_quantity(total)}",
+        "summary": f"총 {len(rows)}건, 총 목표량 {format_summary_quantity(total)}",
     }
 
 
@@ -421,9 +421,9 @@ def get_defect_rate(params: Dict[str, Any]) -> Dict[str, Any]:
         defect_qty = int(inspection_qty * random.uniform(rate_floor, rate_ceiling))
         row = _build_base_row(date, spec, product)
         row["inspection_qty"] = inspection_qty
-        row["遺덈웾?섎웾"] = defect_qty
+        row["불량수량"] = defect_qty
         row["defect_rate"] = round((defect_qty / inspection_qty) * 100, 2)
-        row["二쇱슂遺덈웾?좏삎"] = random.choice(DEFECTS_BY_FAMILY.get(family, DEFECTS_BY_FAMILY["ETC"]))
+        row["주요불량유형"] = random.choice(DEFECTS_BY_FAMILY.get(family, DEFECTS_BY_FAMILY["ETC"]))
         row = _apply_signal_overrides("defect", row)
         rows.append(row)
     rows = _apply_common_filters(rows, params)
@@ -432,7 +432,7 @@ def get_defect_rate(params: Dict[str, Any]) -> Dict[str, Any]:
         "success": True,
         "tool_name": "get_defect_rate",
         "data": rows,
-        "summary": f"珥?{len(rows)}嫄? ?됯퇏 遺덈웾瑜?{avg_rate:.2f}%",
+        "summary": f"총 {len(rows)}건, 평균 불량률 {avg_rate:.2f}%",
     }
 
 
@@ -446,21 +446,21 @@ def get_equipment_status(params: Dict[str, Any]) -> Dict[str, Any]:
         planned = 24.0
         actual = round(planned * util / 100, 1)
         row = _build_base_row(date, spec, product)
-        row["?ㅻ퉬ID"] = equip_id
-        row["?ㅻ퉬紐?"] = equip_name
+        row["설비ID"] = equip_id
+        row["설비명"] = equip_name
         row["planned_hours"] = planned
         row["actual_hours"] = actual
-        row["媛?숇쪧"] = util
-        row["鍮꾧??숈궗??"] = "none" if util > 90 else random.choice(DOWNTIME_BY_FAMILY.get(spec["family"], DOWNTIME_BY_FAMILY["ETC"]))
+        row["가동률"] = util
+        row["비가동사유"] = "none" if util > 90 else random.choice(DOWNTIME_BY_FAMILY.get(spec["family"], DOWNTIME_BY_FAMILY["ETC"]))
         row = _apply_signal_overrides("equipment", row)
         rows.append(row)
     rows = _apply_common_filters(rows, params)
-    avg_util = sum(float(item["媛?숇쪧"]) for item in rows) / len(rows) if rows else 0.0
+    avg_util = sum(float(item["가동률"]) for item in rows) / len(rows) if rows else 0.0
     return {
         "success": True,
         "tool_name": "get_equipment_status",
         "data": rows,
-        "summary": f"珥?{len(rows)}嫄? ?됯퇏 媛?숇쪧 {avg_util:.1f}%",
+        "summary": f"총 {len(rows)}건, 평균 가동률 {avg_util:.1f}%",
     }
 
 
@@ -470,19 +470,19 @@ def get_wip_status(params: Dict[str, Any]) -> Dict[str, Any]:
     rows: List[Dict[str, Any]] = []
     for spec, product in _iter_valid_process_product_pairs():
         row = _build_base_row(date, spec, product)
-        row["?ш났?섎웾"] = random.randint(150, 2600)
+        row["재공수량"] = random.randint(150, 2600)
         row["avg_wait_minutes"] = random.randint(10, 240)
-        row["?곹깭"] = random.choice(WIP_STATUS_BY_FAMILY.get(spec["family"], WIP_STATUS_BY_FAMILY["ETC"]))
+        row["상태"] = random.choice(WIP_STATUS_BY_FAMILY.get(spec["family"], WIP_STATUS_BY_FAMILY["ETC"]))
         row = _apply_signal_overrides("wip", row)
         rows.append(row)
     rows = _apply_common_filters(rows, params)
-    total = sum(int(item["?ш났?섎웾"]) for item in rows)
-    delayed = sum(1 for item in rows if item["?곹깭"] in {"HOLD", "REWORK", "WAIT_QA", "WAIT_MATERIAL"})
+    total = sum(int(item["재공수량"]) for item in rows)
+    delayed = sum(1 for item in rows if item["상태"] in {"HOLD", "REWORK", "WAIT_QA", "WAIT_MATERIAL"})
     return {
         "success": True,
         "tool_name": "get_wip_status",
         "data": rows,
-        "summary": f"珥?{len(rows)}嫄? 珥?WIP {format_summary_quantity(total)} EA, ?湲?蹂대쪟 {delayed}嫄?",
+        "summary": f"총 {len(rows)}건, 총 WIP {format_summary_quantity(total)} EA, 대기/보류 {delayed}건",
     }
 
 
@@ -509,7 +509,7 @@ def get_yield_data(params: Dict[str, Any]) -> Dict[str, Any]:
         "success": True,
         "tool_name": "get_yield_data",
         "data": rows,
-        "summary": f"珥?{len(rows)}嫄? ?됯퇏 ?섏쑉 {avg_yield:.2f}%",
+        "summary": f"총 {len(rows)}건, 평균 수율 {avg_yield:.2f}%",
     }
 
 
@@ -537,9 +537,9 @@ def get_hold_lot_data(params: Dict[str, Any]) -> Dict[str, Any]:
         "tool_name": "get_hold_lot_data",
         "data": rows,
         "summary": (
-            f"珥?{len(rows)}嫄? 珥?????섎웾 {format_summary_quantity(total_hold)}, ?됯퇏 ????쒓컙 {avg_hold_hours:.1f}h"
+            f"총 {len(rows)}건, 총 홀드수량 {format_summary_quantity(total_hold)}, 평균 홀드시간 {avg_hold_hours:.1f}h"
             if rows
-            else "珥?0嫄? 珥?????섎웾 0"
+            else "총 0건, 총 홀드수량 0"
         ),
     }
 
@@ -564,7 +564,7 @@ def get_scrap_data(params: Dict[str, Any]) -> Dict[str, Any]:
         "success": True,
         "tool_name": "get_scrap_data",
         "data": rows,
-        "summary": f"珥?{len(rows)}嫄? 珥??ㅽ겕??{format_summary_quantity(total_scrap)}, 珥??먯떎鍮꾩슜 ${total_cost:,}",
+        "summary": f"총 {len(rows)}건, 총 스크랩 {format_summary_quantity(total_scrap)}, 총 손실비용 ${total_cost:,}",
     }
 
 
@@ -587,7 +587,7 @@ def get_recipe_condition_data(params: Dict[str, Any]) -> Dict[str, Any]:
         "success": True,
         "tool_name": "get_recipe_condition_data",
         "data": rows,
-        "summary": f"珥?{len(rows)}嫄? 怨듭젙 議곌굔/?덉떆???대젰 議고쉶 ?꾨즺",
+        "summary": f"총 {len(rows)}건, 공정 조건/레시피 이력 조회 완료",
     }
 
 
@@ -615,7 +615,7 @@ def get_lot_trace_data(params: Dict[str, Any]) -> Dict[str, Any]:
         "success": True,
         "tool_name": "get_lot_trace_data",
         "data": rows,
-        "summary": f"珥?{len(rows)}嫄? ?됯퇏 泥대쪟 ?쒓컙 {avg_elapsed:.1f}h",
+        "summary": f"총 {len(rows)}건, 평균 체류 시간 {avg_elapsed:.1f}h",
     }
 
 
@@ -672,7 +672,7 @@ def pick_retrieval_tools(query_text: str) -> List[str]:
         if any(normalize_text(token) in query for token in keywords):
             selected.append(dataset_key)
 
-    explicit_trace_tokens = ["trace", "?대젰", "異붿쟻", "traceability"]
+    explicit_trace_tokens = ["trace", "이력", "추적", "traceability"]
     if "hold" in selected and "lot_trace" in selected and not any(normalize_text(token) in query for token in explicit_trace_tokens):
         selected = [item for item in selected if item != "lot_trace"]
 

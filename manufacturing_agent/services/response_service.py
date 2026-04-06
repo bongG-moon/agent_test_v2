@@ -13,39 +13,39 @@ from .request_context import build_recent_chat_text, get_llm_for_task
 def format_result_preview(result: Dict[str, Any], max_rows: int = 5) -> str:
     rows = result.get("data", [])
     if not isinstance(rows, list) or not rows:
-        return "?놁쓬"
+        return "결과 없음"
 
     preview_rows, _ = format_rows_for_display([row for row in rows[:max_rows] if isinstance(row, dict)])
     return json.dumps(preview_rows, ensure_ascii=False, indent=2)
 
 
 def build_response_prompt(user_input: str, result: Dict[str, Any], chat_history: List[Dict[str, str]]) -> str:
-    return f"""?ъ슜?먯뿉寃??쒖“ ?곗씠??遺꾩꽍 寃곌낵瑜??ㅻ챸??二쇱꽭??
+    return f"""당신은 제조 데이터 분석 결과를 한국어로 간결하게 설명하는 어시스턴트입니다.
 
-?ъ슜??吏덈Ц:
+사용자 질문:
 {user_input}
 
-理쒓렐 ???
+최근 대화:
 {build_recent_chat_text(chat_history)}
 
-?꾩옱 寃곌낵 ?붿빟:
+결과 요약:
 {result.get('summary', '')}
 
-?꾩옱 寃곌낵 嫄댁닔:
-{len(result.get('data', []))}嫄?
+결과 행 수:
+{len(result.get('data', []))}
 
-?꾩옱 寃곌낵 誘몃━蹂닿린:
+결과 미리보기:
 {format_result_preview(result)}
 
-遺꾩꽍 怨꾪쉷:
+분석 계획:
 {json.dumps(result.get('analysis_plan', {}), ensure_ascii=False)}
 
-洹쒖튃:
-1. 諛섎뱶???꾩옱 寃곌낵 ?뚯씠釉?湲곗??쇰줈留??ㅻ챸?섏꽭??
-2. ?먮낯 ?꾩껜 ?곗씠?곕? 蹂?寃껋쿂??留먰븯吏 留덉꽭??
-3. 洹몃９?? ?곸쐞 N, ?뺣젹 ?붿껌?대㈃ 洹?寃곌낵 援ъ“瑜?諛붾줈 ?ㅻ챸?섏꽭??
-4. 誘몃━蹂닿린??K/M ?⑥쐞瑜??ㅼ떆 ?섎せ ?댁꽍?섏? 留덉꽭??
-5. 3~5臾몄옣?쇰줈 吏㏐퀬 紐낇솗?섍쾶 ?듯븯?몄슂.
+작성 규칙:
+1. 현재 결과에서 확인되는 사실만 설명한다.
+2. 중요한 수치와 기준을 함께 언급한다.
+3. 표 전체를 반복하지 말고 핵심만 3~5문장으로 요약한다.
+4. 수치 단위나 비교 기준이 있으면 함께 적는다.
+5. 한국어로 자연스럽게 작성한다.
 """
 
 
@@ -60,4 +60,4 @@ def generate_response(user_input: str, result: Dict[str, Any], chat_history: Lis
             return "\n".join(str(item.get("text", "")) if isinstance(item, dict) else str(item) for item in response.content)
         return str(response.content)
     except Exception:
-        return f"{result.get('summary', '寃곌낵瑜??뺤씤?덉뒿?덈떎.')} ?꾨옒 ?쒕? ?④퍡 ?뺤씤??二쇱꽭??"
+        return f"{result.get('summary', '결과 요약을 생성하지 못했습니다.')} 결과 미리보기만 먼저 제공합니다."

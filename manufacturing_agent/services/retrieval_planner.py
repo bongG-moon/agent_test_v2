@@ -9,7 +9,6 @@ from ..data.retrieval import (
     DATASET_REGISTRY,
     dataset_requires_date,
     execute_retrieval_tools,
-    get_dataset_label,
     pick_retrieval_tools,
 )
 from ..domain.registry import build_registered_domain_prompt, match_registered_analysis_rules
@@ -193,11 +192,11 @@ def build_missing_date_message(retrieval_keys: List[str]) -> str:
     labels = get_dataset_labels_for_message([key for key in retrieval_keys if dataset_requires_date(key)])
     if labels:
         return (
-            "?꾩옱 ?붿껌?먯꽌???좎쭨媛 ?꾩슂??議고쉶 ??곸씠 ?ы븿?섏뼱 ?덉뒿?덈떎"
+            "이 질문은 날짜 기준이 필요한 조회입니다"
             f" ({', '.join(labels)}). "
-            "?대떦 ?곗씠?곗쓽 湲곗? ?쇱옄瑜?媛숈씠 ?뚮젮二쇱꽭?? ?? ?ㅻ뒛, ?댁젣, 20260324"
+            "예를 들어 오늘, 어제, 20260324 처럼 날짜를 함께 적어 주세요."
         )
-    return "???붿껌? ?좎쭨 ?놁씠??議고쉶?????덉뒿?덈떎."
+    return "이 조회는 날짜 조건이 있어야 실행할 수 있습니다."
 
 
 def extract_date_slices(user_input: str, default_date: str | None) -> List[Dict[str, str]]:
@@ -205,10 +204,10 @@ def extract_date_slices(user_input: str, default_date: str | None) -> List[Dict[
     slices: List[Dict[str, str]] = []
     now = datetime.now()
 
-    if "?댁젣" in normalized or "yesterday" in normalized:
-        slices.append({"label": "?댁젣", "date": (now - timedelta(days=1)).strftime("%Y%m%d")})
-    if "?ㅻ뒛" in normalized or "today" in normalized:
-        slices.append({"label": "?ㅻ뒛", "date": now.strftime("%Y%m%d")})
+    if "어제" in normalized or "yesterday" in normalized:
+        slices.append({"label": "어제", "date": (now - timedelta(days=1)).strftime("%Y%m%d")})
+    if "오늘" in normalized or "today" in normalized:
+        slices.append({"label": "오늘", "date": now.strftime("%Y%m%d")})
 
     import re
 

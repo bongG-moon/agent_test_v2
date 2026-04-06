@@ -111,17 +111,17 @@ def _inherit_from_context(extracted_params: RequiredParams, context: Dict[str, A
 def _fallback_date(text: str) -> str | None:
     lower = str(text or "").lower()
     now = datetime.now()
-    if "?ㅻ뒛" in lower or "today" in lower:
+    if "오늘" in lower or "today" in lower:
         return now.strftime("%Y%m%d")
-    if "?댁젣" in lower or "yesterday" in lower:
+    if "어제" in lower or "yesterday" in lower:
         return (now - timedelta(days=1)).strftime("%Y%m%d")
     return None
 
 
 def _detect_oper_num(text: str) -> List[str] | None:
     patterns = [
-        r"(?:怨듭젙踰덊샇|oper_num|oper|operation)\s*[:=]?\s*(\d{4})",
-        r"(\d{4})\s*踰?\s*怨듭젙",
+        r"(?:공정번호|oper_num|oper|operation)\s*[:=]?\s*(\d{4})",
+        r"(\d{4})\s*번?\s*공정",
     ]
     values: List[str] = []
     for pattern in patterns:
@@ -233,9 +233,9 @@ def _normalize_special_product_name(value: Any) -> str | None:
         "hbm/3ds",
         "hbm",
         "3ds",
-        "hbm?쒗뭹",
-        "hbm?먯옱",
-        "3ds?쒗뭹",
+        "hbm제품",
+        "hbm자재",
+        "3ds제품",
     ]
     auto_tokens = ["auto_product", "auto", "automotive", "차량", "오토"]
 
@@ -248,7 +248,7 @@ def _normalize_special_product_name(value: Any) -> str | None:
 
 def _apply_domain_overrides(extracted_params: RequiredParams, user_input: str) -> RequiredParams:
     normalized = normalize_text(user_input)
-    input_requested = any(token in normalized for token in ["?ъ엯??", "input", "?명뭼"])
+    input_requested = any(token in normalized for token in ["투입", "input", "인풋"])
 
     if not extracted_params.get("process_name") and input_requested:
         extracted_params["process_name"] = ["INPUT"]

@@ -26,9 +26,9 @@ def _find_semantic_retry_reason(query_text: str, columns: List[str], code: str) 
         if "hold_reason" not in code_text:
             return "The previous code did not use `hold_reason` even though the user asked for it."
 
-    if "avg_wait_minutes" in available and "?곹깭" in available and ("hold lot" in lower_query or "대기시간" in query):
+    if "avg_wait_minutes" in available and "상태" in available and ("hold lot" in lower_query or "대기시간" in query):
         has_wait_metric = "avg_wait_minutes" in code_text
-        has_hold_count = "HOLD" in code_text or "hold_lot" in code_text or "?곹깭" in code_text
+        has_hold_count = "HOLD" in code_text or "hold_lot" in code_text or "상태" in code_text
         if not (has_wait_metric and has_hold_count):
             return "The previous code did not include both average wait time and hold lot count."
 
@@ -41,7 +41,7 @@ def _find_semantic_retry_reason(query_text: str, columns: List[str], code: str) 
         if not (has_production and has_target and has_ratio):
             return "The previous code did not calculate achievement rate from both `production` and `target`."
 
-    if ("missing" in lower_query or "list" in lower_query or "?녿뒗" in query or "목록" in query) and not any(
+    if ("missing" in lower_query or "list" in lower_query or "없는" in query or "목록" in query) and not any(
         token in code_text for token in ["isna(", "isnull(", "notna(", "notnull("]
     ):
         return "The previous code did not apply missing-value filtering even though the user asked for missing rows."

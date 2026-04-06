@@ -33,7 +33,7 @@ def single_retrieval_node(state: AgentGraphState) -> AgentGraphState:
         "result": {
             "response": generate_response(state["user_input"], result, chat_history)
             if result.get("success")
-            else result.get("error_message", "議고쉶???ㅽ뙣?덉뒿?덈떎."),
+            else result.get("error_message", "조회 결과를 처리하지 못했습니다."),
             "tool_results": tool_results,
             "current_data": result if result.get("success") else current_data,
             "extracted_params": single_job["params"] or extracted_params,

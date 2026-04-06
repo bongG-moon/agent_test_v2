@@ -10,16 +10,16 @@ from ..shared.filter_utils import normalize_text
 
 
 DIMENSION_ALIAS_MAP = {
-    "WORK_DT": {"WORK_DT", "?쇱옄", "?좎쭨", "date"},
-    "OPER_NAME": {"OPER_NAME", "怨듭젙", "process"},
-    "怨듭젙援?": {"怨듭젙援?", "process family"},
-    "?쇱씤": {"?쇱씤", "line"},
-    "MODE": {"MODE", "mode", "紐⑤뱶", "?쒗뭹"},
-    "DEN": {"DEN", "den", "density", "?⑸웾"},
-    "TECH": {"TECH", "tech", "湲곗닠"},
+    "WORK_DT": {"WORK_DT", "일자", "날짜", "date"},
+    "OPER_NAME": {"OPER_NAME", "공정", "process"},
+    "공정군": {"공정군", "process family"},
+    "라인": {"라인", "line"},
+    "MODE": {"MODE", "mode", "모드", "제품모드"},
+    "DEN": {"DEN", "den", "density", "용량"},
+    "TECH": {"TECH", "tech", "기술"},
     "LEAD": {"LEAD", "lead"},
     "MCP_NO": {"MCP_NO", "mcp", "mcp_no"},
-    "OPER_NUM": {"OPER_NUM", "oper_num", "oper", "怨듭젙踰덊샇", "operation"},
+    "OPER_NUM": {"OPER_NUM", "oper_num", "oper", "공정번호", "operation"},
     "PKG_TYPE1": {"PKG_TYPE1", "pkg type1", "pkg_type1"},
     "PKG_TYPE2": {"PKG_TYPE2", "pkg type2", "pkg_type2", "stack"},
     "PKG1": {"PKG1", "pkg1"},
@@ -28,20 +28,21 @@ DIMENSION_ALIAS_MAP = {
     "FACTORY": {"FACTORY", "factory"},
     "FAMILY": {"FAMILY", "family"},
     "ORG": {"ORG", "org"},
-    "?곹깭": {"?곹깭", "status"},
-    "二쇱슂遺덈웾?좏삎": {"二쇱슂遺덈웾?좏삎", "遺덈웾?좏삎", "defect type"},
+    "상태": {"상태", "status"},
+    "주요불량유형": {"주요불량유형", "대표불량유형", "defect type"},
 }
 
 IGNORED_DIMENSION_TOKENS = {
-    "?ㅻ뒛",
-    "?댁젣",
-    "湲곗?",
-    "鍮꾧탳",
-    "寃곌낵",
-    "?곗씠??",
-    "?앹궛??",
-    "媛怨?",
-    "紐⑸줉",
+    "오늘",
+    "어제",
+    "기준",
+    "비교",
+    "정렬",
+    "조회",
+    "데이터",
+    "결과",
+    "목록",
+    "요약",
     "list",
     "show",
 }
@@ -63,7 +64,17 @@ def dataset_profile(data: List[Dict[str, Any]]) -> DatasetProfile:
 
 def find_metric_column(columns: List[str], query_text: str) -> str:
     normalized = normalize_text(query_text)
-    candidates = ["production", "target", "defect_rate", "遺덈웾?섎웾", "媛?숇쪧", "?ш났?섎웾"]
+    candidates = [
+        "production",
+        "target",
+        "defect_rate",
+        "불량수량",
+        "가동률",
+        "재공수량",
+        "yield_rate",
+        "hold_qty",
+        "scrap_qty",
+    ]
 
     for candidate in candidates:
         if normalize_text(candidate) in normalized and candidate in columns:
@@ -131,11 +142,11 @@ def format_missing_column_message(missing_columns: List[str], columns: List[str]
 
     suffix_note = ""
     if any(column.endswith("_x") or column.endswith("_y") for column in columns):
-        suffix_note = " `_x`/`_y` columns were created during merge because names overlapped."
+        suffix_note = " `_x`/`_y` 컬럼은 병합 중 이름이 겹쳐서 생성되었습니다."
 
     return (
-        f"Requested columns `{missing_preview}` are not available in the current table. "
-        f"Available columns include `{available_preview}`.{suffix_note}"
+        f"요청한 컬럼 `{missing_preview}` 을(를) 현재 테이블에서 찾을 수 없습니다. "
+        f"현재 컬럼 예시는 `{available_preview}` 입니다.{suffix_note}"
     )
 
 
@@ -149,7 +160,8 @@ def parse_top_n(text: str, default: int = 5) -> int:
 def minimal_fallback_plan(query_text: str, data: List[Dict[str, Any]]) -> PreprocessPlan:
     columns = extract_columns(data)
     metric_column = find_metric_column(columns, query_text)
-    sort_order = "asc" if any(token in normalize_text(query_text) for token in ["?섏쐞", "理쒖냼", "???"]) else "desc"
+    normalized_query = normalize_text(query_text)
+    sort_order = "asc" if any(token in normalized_query for token in ["오름차순", "낮은순", "asc"]) else "desc"
     top_n = parse_top_n(query_text, default=5)
     return {
         "intent": "basic fallback sorting",

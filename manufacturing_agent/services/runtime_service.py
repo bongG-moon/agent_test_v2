@@ -112,8 +112,8 @@ def run_analysis_after_retrieval(
 
     source_summary = generate_response(user_input, primary_source, chat_history)
     response = (
-        f"{analysis_result.get('error_message', '?꾩쿂由?遺꾩꽍???ㅽ뙣?덉뒿?덈떎.')}\n\n"
-        f"???議고쉶???먮낯 寃곌낵瑜?癒쇱? 蹂댁뿬?쒕┰?덈떎.\n\n{source_summary}"
+        f"{analysis_result.get('error_message', '분석을 완료하지 못했습니다.')}\n\n"
+        f"원본 조회 결과는 아래와 같습니다.\n\n{source_summary}"
     )
     tool_results = mark_primary_result([*source_results, analysis_result], primary_index=len(source_results) - 1)
     return {
@@ -140,7 +140,7 @@ def run_multi_retrieval_jobs(
     if failed_results:
         first_error = failed_results[0]
         return {
-            "response": first_error.get("error_message", "蹂듭닔 議고쉶 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎."),
+            "response": first_error.get("error_message", "다중 데이터 조회 중 오류가 발생했습니다."),
             "tool_results": source_results,
             "current_data": current_data,
             "extracted_params": jobs[0]["params"] if jobs else {},
@@ -161,7 +161,7 @@ def run_multi_retrieval_jobs(
             overview_result["current_datasets"] = current_datasets
             attach_source_dataset_metadata(overview_result, source_results)
             return {
-                "response": analysis_base.get("error_message", "?щ윭 ?곗씠?곗뀑???④퍡 遺꾩꽍??怨듯넻 湲곗???李얠? 紐삵뻽?듬땲??"),
+                "response": analysis_base.get("error_message", "다중 데이터 병합용 기준 테이블을 만들지 못했습니다."),
                 "tool_results": mark_primary_result([*source_results, overview_result], primary_index=len(source_results)),
                 "current_data": overview_result,
                 "extracted_params": jobs[0]["params"] if jobs else {},
@@ -205,7 +205,7 @@ def run_multi_retrieval_jobs(
         overview_result["current_datasets"] = current_datasets
         attach_source_dataset_metadata(overview_result, source_results)
         return {
-            "response": analysis_result.get("error_message", "蹂듭닔 ?곗씠?곗뀑 遺꾩꽍???ㅽ뙣?덉뒿?덈떎."),
+            "response": analysis_result.get("error_message", "다중 데이터 분석을 완료하지 못했습니다."),
             "tool_results": mark_primary_result([*source_results, overview_result], primary_index=len(source_results)),
             "current_data": overview_result,
             "extracted_params": jobs[0]["params"] if jobs else {},
@@ -250,7 +250,7 @@ def run_followup_analysis(
         result["source_dataset_keys"] = collect_current_source_dataset_keys(current_data)
     tool_results = mark_primary_result([result], primary_index=0)
     return {
-        "response": generate_response(user_input, result, chat_history) if result.get("success") else result.get("error_message", "遺꾩꽍???ㅽ뙣?덉뒿?덈떎."),
+        "response": generate_response(user_input, result, chat_history) if result.get("success") else result.get("error_message", "분석을 완료하지 못했습니다."),
         "tool_results": tool_results,
         "current_data": result if result.get("success") else current_data,
         "extracted_params": cleaned_params,
@@ -314,7 +314,7 @@ def run_retrieval(
 
     tool_results = mark_primary_result([result], primary_index=0)
     return {
-        "response": generate_response(user_input, result, chat_history) if result.get("success") else result.get("error_message", "議고쉶???ㅽ뙣?덉뒿?덈떎."),
+        "response": generate_response(user_input, result, chat_history) if result.get("success") else result.get("error_message", "조회 결과를 처리하지 못했습니다."),
         "tool_results": tool_results,
         "current_data": result if result.get("success") else current_data,
         "extracted_params": single_job["params"],
