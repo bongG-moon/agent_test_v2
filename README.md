@@ -24,21 +24,19 @@ agent_langgraph_v2/
 1. [app.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/app.py)
 2. [manufacturing_agent/agent.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/agent.py)
 3. [manufacturing_agent/graph/builder.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/graph/builder.py)
-4. [docs/PYTHON_FILE_GUIDE.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/PYTHON_FILE_GUIDE.md)
-5. [docs/FUNCTION_ROLE_GUIDE.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/FUNCTION_ROLE_GUIDE.md)
+4. [docs/README.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/README.md)
+5. [docs/PYTHON_FILE_GUIDE.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/PYTHON_FILE_GUIDE.md)
 
 ## 문서
 
+- [docs/README.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/README.md)
 - [docs/START_HERE.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/START_HERE.md)
 - [docs/ARCHITECTURE.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/ARCHITECTURE.md)
-- [docs/NODE_GUIDE.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/NODE_GUIDE.md)
-- [docs/MIGRATION_TO_LANGFLOW.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/MIGRATION_TO_LANGFLOW.md)
 - [docs/PYTHON_FILE_GUIDE.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/PYTHON_FILE_GUIDE.md)
 - [docs/FUNCTION_ROLE_GUIDE.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/FUNCTION_ROLE_GUIDE.md)
+- [docs/BEGINNER_LEARNING_PATH.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/BEGINNER_LEARNING_PATH.md)
 - [docs/LANGFLOW_VERSION.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/LANGFLOW_VERSION.md)
 - [docs/LANGFLOW_CANVAS_EXAMPLE.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/LANGFLOW_CANVAS_EXAMPLE.md)
-- [docs/BEGINNER_LEARNING_PATH.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/BEGINNER_LEARNING_PATH.md)
-- [docs/SECOND_REFACTOR_CANDIDATES.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/SECOND_REFACTOR_CANDIDATES.md)
 
 ## 실행
 
