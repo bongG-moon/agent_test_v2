@@ -11,6 +11,7 @@ from manufacturing_agent.app.ui_renderer import (
     reset_filter_session,
     sync_context,
 )
+from manufacturing_agent.shared.text_sanitizer import sanitize_markdown_text
 
 
 st.set_page_config(page_title="Compact Manufacturing Chat", layout="wide")
@@ -24,7 +25,7 @@ def _render_saved_chat_history() -> None:
     engineer_mode = bool(st.session_state.get("engineer_mode", False))
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+            st.markdown(sanitize_markdown_text(message["content"]))
             if message.get("tool_results"):
                 render_tool_results(message["tool_results"], engineer_mode=engineer_mode)
 
@@ -47,7 +48,8 @@ def _run_chat_turn(user_input: str):
 
 
 def _stream_response_text(text: str):
-    for line in str(text or "").splitlines(keepends=True):
+    safe_text = sanitize_markdown_text(text)
+    for line in str(safe_text or "").splitlines(keepends=True):
         yield line
 
 
@@ -55,7 +57,7 @@ def _render_display_options() -> None:
     st.session_state.engineer_mode = st.toggle(
         "ENG'R 모드",
         value=bool(st.session_state.get("engineer_mode", False)),
-        help="켜면 pandas 처리 요약과 생성 코드를 함께 보여줍니다.",
+        help="켜면 pandas 처리 요약과 생성된 코드를 함께 보여줍니다.",
     )
 
 
@@ -66,10 +68,10 @@ def _render_reset_controls() -> None:
         if st.button(
             "대화 초기화",
             use_container_width=True,
-            help="대화 기록, 현재 표, 기억 중인 조회 조건을 모두 지웁니다.",
+            help="대화 기록, 현재 결과, 기억 중인 조회 조건을 모두 지웁니다.",
         ):
             reset_chat_session(st.session_state)
-            st.session_state.chat_reset_notice = "대화를 새로 시작했습니다. 이전 질문, 답변, 현재 데이터, 조회 조건을 모두 비웠습니다."
+            st.session_state.chat_reset_notice = "대화를 새로 시작했습니다. 이전 질문, 응답, 현재 데이터와 조회 조건을 모두 비웠습니다."
             st.rerun()
 
     with right_col:
@@ -77,13 +79,13 @@ def _render_reset_controls() -> None:
             "필터 초기화",
             use_container_width=True,
             disabled=not has_active_context(st.session_state.get("context")),
-            help="기억 중인 조회 조건과 현재 결과 표를 지우고, 대화 기록은 그대로 둡니다.",
+            help="기억 중인 조회 조건과 현재 결과 테이블만 지우고, 대화 기록은 유지합니다.",
         ):
             reset_filter_session(st.session_state)
-            st.session_state.chat_reset_notice = "필터와 현재 결과 표를 초기화했습니다. 이전 대화 내용은 그대로 유지됩니다."
+            st.session_state.chat_reset_notice = "필터와 현재 결과 테이블을 초기화했습니다. 이전 대화 내용은 그대로 유지됩니다."
             st.rerun()
 
-    st.caption("대화 초기화는 전체를 새로 시작할 때 사용합니다. 필터 초기화는 이전 질문에서 기억한 날짜/공정/MODE 같은 조건과 현재 표만 지우고 싶을 때 사용합니다.")
+    st.caption("대화 초기화는 전체 흐름을 새로 시작할 때 사용합니다. 필터 초기화는 이전 질문에서 기억한 날짜/공정/MODE 같은 조건과 현재 결과만 지우고 싶을 때 사용합니다.")
 
 
 def _render_navigation() -> str:
@@ -100,7 +102,7 @@ def _render_navigation() -> str:
 
 def _render_chat_page() -> None:
     st.title("제조 데이터 채팅 분석")
-    st.caption("초기 질문에서도 필요하면 바로 후처리까지 실행하고, 최종 답변에 쓰인 표를 중심으로 보여줍니다.")
+    st.caption("첫 질문에서 필요하면 바로 후처리까지 수행하고, 최종 응답과 함께 결과 테이블을 보여줍니다.")
     notice = str(st.session_state.get("chat_reset_notice", "") or "")
     if notice:
         st.success(notice)
@@ -111,19 +113,19 @@ def _render_chat_page() -> None:
     render_context()
     _render_saved_chat_history()
 
-    user_input = st.chat_input("예: 오늘 XX공정에서 MODE별 생산량 알려줘")
+    user_input = st.chat_input("예: 오늘 XX공정에서 MODE별 생산량 보여줘")
     if not user_input:
         return
 
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
-        st.markdown(user_input)
+        st.markdown(sanitize_markdown_text(user_input))
 
     with st.chat_message("assistant"):
         with st.status("질문을 분석하고 필요한 데이터를 찾는 중입니다.", expanded=True) as status:
             st.write("질문 의도를 해석하는 중")
             result = _run_chat_turn(user_input)
-            response = result.get("response", "응답을 생성하지 못했습니다.")
+            response = sanitize_markdown_text(result.get("response", "응답을 생성하지 못했습니다."))
             tool_results = result.get("tool_results", [])
             engineer_mode = bool(st.session_state.get("engineer_mode", False))
             if tool_results:
@@ -139,7 +141,7 @@ def _render_chat_page() -> None:
     st.session_state.messages.append(
         {
             "role": "assistant",
-            "content": rendered_response if isinstance(rendered_response, str) else response,
+            "content": sanitize_markdown_text(rendered_response if isinstance(rendered_response, str) else response),
             "tool_results": tool_results,
         }
     )

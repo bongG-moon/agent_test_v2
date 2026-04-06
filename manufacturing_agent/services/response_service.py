@@ -7,6 +7,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..shared.config import SYSTEM_PROMPT
 from ..shared.number_format import format_rows_for_display
+from ..shared.text_sanitizer import sanitize_markdown_text
 from .request_context import build_recent_chat_text, get_llm_for_task
 
 
@@ -55,9 +56,11 @@ def generate_response(user_input: str, result: Dict[str, Any], chat_history: Lis
         llm = get_llm_for_task("response_summary")
         response = llm.invoke([SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=prompt)])
         if isinstance(response.content, str):
-            return response.content
+            return sanitize_markdown_text(response.content)
         if isinstance(response.content, list):
-            return "\n".join(str(item.get("text", "")) if isinstance(item, dict) else str(item) for item in response.content)
-        return str(response.content)
+            joined = "\n".join(str(item.get("text", "")) if isinstance(item, dict) else str(item) for item in response.content)
+            return sanitize_markdown_text(joined)
+        return sanitize_markdown_text(str(response.content))
     except Exception:
-        return f"{result.get('summary', '결과 요약을 생성하지 못했습니다.')} 결과 미리보기만 먼저 제공합니다."
+        fallback = f"{result.get('summary', '결과 요약을 생성하지 못했습니다.')} 결과 미리보기만 먼저 제공합니다."
+        return sanitize_markdown_text(fallback)

@@ -2,9 +2,11 @@ from pathlib import Path
 
 from manufacturing_agent.domain import registry
 from manufacturing_agent.services import parameter_service, request_context
+from manufacturing_agent.services import response_service
 from manufacturing_agent.services.query_mode import choose_query_mode
 from manufacturing_agent.adapters.langflow_nodes import extract_params_component
 from manufacturing_agent.agent import run_agent
+from manufacturing_agent.shared.text_sanitizer import sanitize_markdown_text
 from langflow_version.components import ManufacturingAgentComponent
 from langflow_version.workflow import build_initial_state, resolve_request_step, run_langflow_workflow
 
@@ -143,3 +145,26 @@ def test_langflow_full_workflow_returns_result_payload(monkeypatch):
 
 def test_langflow_component_module_imports_without_langflow_installed():
     assert ManufacturingAgentComponent.name == "manufacturing_agent_component"
+
+
+def test_sanitize_markdown_text_preserves_numeric_ranges_without_strikethrough():
+    text = "목표 7,000~~7,200건 대비 약 20~~30% 잔여 생산량"
+    sanitized = sanitize_markdown_text(text)
+
+    assert "7,000~7,200" in sanitized
+    assert "20~30%" in sanitized
+    assert "~~" not in sanitized
+
+
+def test_generate_response_sanitizes_accidental_strikethrough(monkeypatch):
+    monkeypatch.setattr(response_service, "get_llm_for_task", lambda *_args, **_kwargs: _FakeLLM("7,000~~7,200건 / 20~~30%"))
+
+    result = response_service.generate_response(
+        user_input="달성률 알려줘",
+        result={"summary": "테스트", "data": [], "analysis_plan": {}},
+        chat_history=[],
+    )
+
+    assert "7,000~7,200건" in result
+    assert "20~30%" in result
+    assert "~~" not in result
