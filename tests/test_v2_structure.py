@@ -1,0 +1,109 @@
+from pathlib import Path
+
+from manufacturing_agent.domain import registry
+from manufacturing_agent.services import parameter_service, request_context
+from manufacturing_agent.services.query_mode import choose_query_mode
+from manufacturing_agent.adapters.langflow_nodes import extract_params_component
+from manufacturing_agent.agent import run_agent
+
+
+class _FakeResponse:
+    def __init__(self, content):
+        self.content = content
+
+
+class _FakeLLM:
+    def __init__(self, content):
+        self._content = content
+
+    def invoke(self, _messages):
+        return _FakeResponse(self._content)
+
+
+def _stub_llms(monkeypatch, content="{}"):
+    monkeypatch.setattr(parameter_service, "get_llm", lambda *args, **kwargs: _FakeLLM(content))
+    monkeypatch.setattr(request_context, "get_llm", lambda *args, **kwargs: _FakeLLM(content))
+
+
+def test_project_has_beginner_friendly_package_layout():
+    root = Path(__file__).resolve().parents[1]
+    assert (root / "manufacturing_agent" / "graph").exists()
+    assert (root / "manufacturing_agent" / "services").exists()
+    assert (root / "manufacturing_agent" / "domain").exists()
+    assert (root / "manufacturing_agent" / "adapters" / "langflow_nodes.py").exists()
+
+
+def test_expand_registered_process_group_uses_builtin_domain_values():
+    expanded = registry.expand_registered_values("process_name", ["DA"])
+    assert expanded is not None
+    assert "D/A1" in expanded
+    assert "D/A6" in expanded
+
+
+def test_resolve_required_params_detects_process_and_mode_without_real_llm(monkeypatch):
+    _stub_llms(monkeypatch)
+
+    result = parameter_service.resolve_required_params(
+        user_input="today DA process DDR5 production",
+        chat_history_text="",
+        current_data_columns=[],
+        context={},
+    )
+
+    assert result["date"] is not None
+    assert result["mode"] == ["DDR5"]
+    assert "D/A1" in result["process_name"]
+
+
+def test_choose_query_mode_keeps_followup_for_same_scope_transform():
+    current_data = {
+        "success": True,
+        "tool_name": "get_production_data",
+        "dataset_key": "production",
+        "source_dataset_keys": ["production"],
+        "applied_params": {"date": "20260404", "process_name": ["D/A1", "D/A2"]},
+        "data": [
+            {"WORK_DT": "20260404", "OPER_NAME": "D/A1", "MODE": "DDR5", "production": 100},
+            {"WORK_DT": "20260404", "OPER_NAME": "D/A2", "MODE": "LPDDR5", "production": 120},
+        ],
+    }
+
+    query_mode = choose_query_mode(
+        "group by MODE",
+        current_data,
+        {"date": "20260404", "process_name": ["D/A1", "D/A2"], "group_by": "MODE"},
+    )
+
+    assert query_mode == "followup_transform"
+
+
+def test_langflow_extract_params_component_returns_plain_dict(monkeypatch):
+    _stub_llms(monkeypatch)
+
+    result = extract_params_component(
+        {
+            "user_input": "today DA process DDR5 production",
+            "chat_history": [],
+            "current_data": None,
+            "context": {},
+        }
+    )
+
+    assert isinstance(result, dict)
+    assert "extracted_params" in result
+    assert result["extracted_params"]["mode"] == ["DDR5"]
+
+
+def test_run_agent_smoke_returns_result_payload(monkeypatch):
+    _stub_llms(monkeypatch)
+
+    result = run_agent(
+        user_input="today DA process DDR5 wip",
+        chat_history=[],
+        context={},
+        current_data=None,
+    )
+
+    assert isinstance(result, dict)
+    assert result["tool_results"]
+    assert result["current_data"]["tool_name"] in {"get_wip_status", "multi_dataset_overview", "analyze_current_data"}
