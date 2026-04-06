@@ -37,6 +37,9 @@ agent_langgraph_v2/
 - [docs/PYTHON_FILE_GUIDE.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/PYTHON_FILE_GUIDE.md)
 - [docs/FUNCTION_ROLE_GUIDE.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/FUNCTION_ROLE_GUIDE.md)
 - [docs/LANGFLOW_VERSION.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/LANGFLOW_VERSION.md)
+- [docs/LANGFLOW_CANVAS_EXAMPLE.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/LANGFLOW_CANVAS_EXAMPLE.md)
+- [docs/BEGINNER_LEARNING_PATH.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/BEGINNER_LEARNING_PATH.md)
+- [docs/CORE_DECISION_GUIDE.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/CORE_DECISION_GUIDE.md)
 
 ## 실행
 
