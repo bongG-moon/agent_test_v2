@@ -5,6 +5,8 @@ from manufacturing_agent.services import parameter_service, request_context
 from manufacturing_agent.services.query_mode import choose_query_mode
 from manufacturing_agent.adapters.langflow_nodes import extract_params_component
 from manufacturing_agent.agent import run_agent
+from langflow_version.components import ManufacturingAgentComponent
+from langflow_version.workflow import build_initial_state, resolve_request_step, run_langflow_workflow
 
 
 class _FakeResponse:
@@ -107,3 +109,37 @@ def test_run_agent_smoke_returns_result_payload(monkeypatch):
     assert isinstance(result, dict)
     assert result["tool_results"]
     assert result["current_data"]["tool_name"] in {"get_wip_status", "multi_dataset_overview", "analyze_current_data"}
+
+
+def test_langflow_workflow_reuses_same_core_logic(monkeypatch):
+    _stub_llms(monkeypatch)
+
+    state = build_initial_state(
+        user_input="today DA process DDR5 production",
+        chat_history=[],
+        context={},
+        current_data=None,
+    )
+    resolved = resolve_request_step(state)
+
+    assert resolved["query_mode"] == "retrieval"
+    assert "D/A1" in resolved["extracted_params"]["process_name"]
+
+
+def test_langflow_full_workflow_returns_result_payload(monkeypatch):
+    _stub_llms(monkeypatch)
+
+    result = run_langflow_workflow(
+        user_input="today DA process DDR5 wip",
+        chat_history=[],
+        context={},
+        current_data=None,
+    )
+
+    assert isinstance(result, dict)
+    assert result["tool_results"]
+    assert result["execution_engine"] == "langflow_v2"
+
+
+def test_langflow_component_module_imports_without_langflow_installed():
+    assert ManufacturingAgentComponent.name == "manufacturing_agent_component"
