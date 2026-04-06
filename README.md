@@ -15,7 +15,6 @@ agent_langgraph_v2/
   app.py
   manufacturing_agent/   # 실제 v2 코어
   langflow_version/      # Langflow 전용 레이어
-  core/                  # 레거시/호환 계층
   docs/                  # 이해용 문서
   tests/                 # 기본 검증
 ```

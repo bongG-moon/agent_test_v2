@@ -672,8 +672,8 @@
 ### [tests/conftest.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/tests/conftest.py)
 - 전역 fixture 는 없고, import path 설정만 합니다.
 
-## 17. `core/` 를 어떻게 이해하면 좋은가
+## 17. 지금 구조를 어떻게 보면 좋은가
 
-- `core/agent.py` 는 호환 래퍼입니다.
-- 나머지 `core/*.py` 는 예전 구조의 참조본 또는 이전 import 경로 유지용입니다.
-- 새 구조를 이해하는 목적이라면 `core/` 함수보다 `manufacturing_agent/` 함수부터 보는 것이 좋습니다.
+- 실제 실행 코드는 `manufacturing_agent/` 와 `langflow_version/` 에 있습니다.
+- 새 기능을 추가할 때도 이 두 경로를 중심으로 보면 됩니다.
+- 과거 `core/` 계층은 제거되었으므로, 더 이상 읽기 시작점으로 고려하지 않아도 됩니다.

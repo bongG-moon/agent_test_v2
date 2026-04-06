@@ -11,7 +11,8 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from core import agent, domain_registry
+from manufacturing_agent import agent
+from manufacturing_agent.domain import registry as domain_registry
 
 
 DOMAIN_TEXTS = [

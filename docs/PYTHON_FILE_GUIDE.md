@@ -5,7 +5,6 @@
 가장 중요한 원칙:
 
 - 실제 v2 실행 경로는 `manufacturing_agent/` 입니다.
-- `core/` 는 과거 구조를 유지하거나 참고하기 위한 레거시/호환 계층입니다.
 - Langflow 전용 구현은 `langflow_version/` 에 따로 분리되어 있습니다.
 
 ## 추천 읽기 순서
@@ -224,57 +223,6 @@
 ### [langflow_version/components.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_version/components.py)
 - Langflow 커스텀 컴포넌트 클래스 모음입니다.
 - 전체 실행용 컴포넌트와 단계별 컴포넌트를 모두 제공합니다.
-
-## `core/` 레거시/호환 계층
-
-중요:
-
-- 실제 v2 학습은 `manufacturing_agent/` 부터 시작하는 것을 권장합니다.
-- `core/` 는 기존 구조를 참고하거나 이전 import 경로를 유지하기 위한 폴더입니다.
-
-### [core/__init__.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core/__init__.py)
-- `run_agent` 를 외부에 노출하는 호환 지점입니다.
-
-### [core/agent.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core/agent.py)
-- 가장 중요한 호환 래퍼입니다.
-- 실제 구현은 `manufacturing_agent.agent.run_agent` 로 넘깁니다.
-
-### [core/analysis_contracts.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core/analysis_contracts.py)
-- 예전 구조의 타입 정의 파일입니다.
-- 개념상 `manufacturing_agent.analysis.contracts` 와 대응됩니다.
-
-### [core/analysis_helpers.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core/analysis_helpers.py)
-- 예전 구조의 분석 보조 함수 파일입니다.
-
-### [core/analysis_llm.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core/analysis_llm.py)
-- 예전 구조의 분석 LLM planner 파일입니다.
-
-### [core/config.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core/config.py)
-- 예전 구조의 공통 설정 파일입니다.
-
-### [core/data_analysis_engine.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core/data_analysis_engine.py)
-- 예전 구조의 분석 엔진 파일입니다.
-
-### [core/data_tools.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core/data_tools.py)
-- 예전 구조의 dataset retrieval/mock data 파일입니다.
-
-### [core/domain_knowledge.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core/domain_knowledge.py)
-- 예전 구조의 도메인 상수 파일입니다.
-
-### [core/domain_registry.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core/domain_registry.py)
-- 예전 구조의 사용자 규칙 레지스트리 파일입니다.
-
-### [core/filter_utils.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core/filter_utils.py)
-- 예전 구조의 문자열 필터 유틸입니다.
-
-### [core/number_format.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core/number_format.py)
-- 예전 구조의 숫자 표시 유틸입니다.
-
-### [core/parameter_resolver.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core/parameter_resolver.py)
-- 예전 구조의 파라미터 추출 파일입니다.
-
-### [core/safe_code_executor.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core/safe_code_executor.py)
-- 예전 구조의 안전 실행기입니다.
 
 ## Scripts And Tests
 

@@ -20,7 +20,6 @@
 
 - 프로젝트가 무엇을 하는지 이해
 - `graph`, `services`, `data`, `domain` 이 어떤 역할인지 이해
-- `core/` 가 주 읽기 대상이 아니라는 점 이해
 
 ## 2단계: 실제 실행 입구 보기
 
@@ -135,8 +134,7 @@
 
 1. `analysis/engine.py` 의 실행 흐름 전체 변경
 2. `merge_service.py` 의 cardinality 로직 변경
-3. `core/` 와 `manufacturing_agent/` 를 동시에 수정
-4. LangGraph와 Langflow 레이어를 동시에 크게 바꾸기
+3. LangGraph와 Langflow 레이어를 동시에 크게 바꾸기
 
 ## 추천 공부 순서 요약
 

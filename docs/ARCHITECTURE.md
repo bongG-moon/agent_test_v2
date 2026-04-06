@@ -95,17 +95,3 @@ UI
 
 - LangGraph와 같은 코어 로직을 Langflow 컴포넌트로 재사용
 - Langflow 없는 환경에서도 import 가능하게 유지
-
-## 8. Legacy Compatibility Layer
-
-- [core](/C:/Users/qkekt/Desktop/agent_langgraph_v2/core)
-
-역할:
-
-- 이전 import 경로 유지
-- 과거 구조 참고
-
-권장:
-
-- 새 기능은 `manufacturing_agent/` 와 `langflow_version/` 에 추가
-- `core/` 는 가능하면 더 키우지 않음
