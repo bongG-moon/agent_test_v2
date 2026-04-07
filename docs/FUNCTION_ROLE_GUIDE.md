@@ -271,6 +271,13 @@
 - `PKG_TYPE2_GROUPS`
   - 역할: 제조 도메인의 기본 규칙과 값 목록을 정의합니다.
 
+- `GROUP_PARAMETER_FIELD_SPECS`
+- `CODE_PARAMETER_FIELD_SPECS`
+- `SINGLE_VALUE_PARAMETER_FIELD_SPECS`
+- `PARAMETER_FIELD_SPECS`
+  - 역할: 파라미터 추출 규칙을 “그룹형 / 코드형 / 단일 값” 구조로 선언적으로 정리한 스펙입니다.
+  - 사용처: [parameter_service.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/services/parameter_service.py)
+
 - `build_domain_knowledge_prompt()`
   - 역할: 도메인 지식을 LLM 프롬프트용 텍스트로 변환합니다.
 

@@ -1,3 +1,5 @@
+"""제조 도메인 지식과 파라미터 추출 스펙을 모아 둔 파일."""
+
 from typing import Dict, List, Set
 
 
@@ -502,78 +504,104 @@ OPER_NUM_DETECTION_PATTERNS = [
 OPER_NUM_VALUES = [spec["OPER_NUM"] for spec in PROCESS_SPECS]
 
 
+def _build_group_field_spec(
+    field_name: str,
+    response_key: str,
+    groups: Dict[str, Dict[str, List[str] | str]],
+    literal_values: List[str] | None = None,
+    keyword_rules: List[Dict[str, List[str] | str]] | None = None,
+) -> Dict[str, object]:
+    """그룹형 필드 스펙을 읽기 쉬운 형태로 만든다."""
+
+    return {
+        "field_name": field_name,
+        "response_key": response_key,
+        "value_kind": "multi",
+        "resolver_kind": "group",
+        "groups": groups,
+        "literal_values": literal_values,
+        "keyword_rules": keyword_rules,
+        "allow_text_detection": True,
+    }
+
+
+def _build_code_field_spec(
+    field_name: str,
+    response_key: str,
+    candidate_values: List[str],
+    patterns: List[str],
+) -> Dict[str, object]:
+    """코드형 필드 스펙을 읽기 쉬운 형태로 만든다."""
+
+    return {
+        "field_name": field_name,
+        "response_key": response_key,
+        "value_kind": "multi",
+        "resolver_kind": "code",
+        "candidate_values": candidate_values,
+        "patterns": patterns,
+        "allow_text_detection": True,
+    }
+
+
+def _build_single_field_spec(
+    field_name: str,
+    response_key: str,
+    keyword_rules: List[Dict[str, List[str] | str]] | None = None,
+) -> Dict[str, object]:
+    """단일 값 필드 스펙을 읽기 쉬운 형태로 만든다."""
+
+    return {
+        "field_name": field_name,
+        "response_key": response_key,
+        "value_kind": "single",
+        "resolver_kind": "single",
+        "keyword_rules": keyword_rules,
+        "allow_text_detection": True,
+    }
+
+
+# 아래 세 묶음만 읽으면 파라미터 추출 규칙 전체를 빠르게 이해할 수 있습니다.
+# 1. 그룹형 필드: 그룹/별칭을 실제 값 목록으로 확장해야 하는 필드
+# 2. 코드형 필드: 후보 목록과 정규식 패턴으로 찾아야 하는 필드
+# 3. 단일 값 필드: 최종적으로 하나의 값만 남기면 되는 필드
+GROUP_PARAMETER_FIELD_SPECS = [
+    _build_group_field_spec(
+        field_name="process_name",
+        response_key="process",
+        groups=PROCESS_GROUPS,
+        literal_values=INDIVIDUAL_PROCESSES + ["INPUT"],
+        keyword_rules=PROCESS_KEYWORD_RULES,
+    ),
+    _build_group_field_spec("pkg_type1", "pkg_type1", PKG_TYPE1_GROUPS),
+    _build_group_field_spec("pkg_type2", "pkg_type2", PKG_TYPE2_GROUPS),
+    _build_group_field_spec("mode", "mode", MODE_GROUPS),
+    _build_group_field_spec("den", "den", DEN_GROUPS),
+    _build_group_field_spec("tech", "tech", TECH_GROUPS),
+]
+
+
+CODE_PARAMETER_FIELD_SPECS = [
+    _build_code_field_spec(
+        field_name="oper_num",
+        response_key="oper_num",
+        candidate_values=OPER_NUM_VALUES,
+        patterns=OPER_NUM_DETECTION_PATTERNS,
+    ),
+]
+
+
+SINGLE_VALUE_PARAMETER_FIELD_SPECS = [
+    _build_single_field_spec("product_name", "product_name", SPECIAL_PRODUCT_KEYWORD_RULES),
+    _build_single_field_spec("line_name", "line_name"),
+    _build_single_field_spec("mcp_no", "mcp_no"),
+]
+
+
 PARAMETER_FIELD_SPECS = [
-    {
-        "field_name": "process_name",
-        "response_key": "process",
-        "value_kind": "multi",
-        "groups": PROCESS_GROUPS,
-        "literal_values": INDIVIDUAL_PROCESSES + ["INPUT"],
-        "keyword_rules": PROCESS_KEYWORD_RULES,
-        "allow_text_detection": True,
-    },
-    {
-        "field_name": "oper_num",
-        "response_key": "oper_num",
-        "value_kind": "multi",
-        "candidate_values": OPER_NUM_VALUES,
-        "patterns": OPER_NUM_DETECTION_PATTERNS,
-        "allow_text_detection": True,
-    },
-    {
-        "field_name": "pkg_type1",
-        "response_key": "pkg_type1",
-        "value_kind": "multi",
-        "groups": PKG_TYPE1_GROUPS,
-        "allow_text_detection": True,
-    },
-    {
-        "field_name": "pkg_type2",
-        "response_key": "pkg_type2",
-        "value_kind": "multi",
-        "groups": PKG_TYPE2_GROUPS,
-        "allow_text_detection": True,
-    },
-    {
-        "field_name": "mode",
-        "response_key": "mode",
-        "value_kind": "multi",
-        "groups": MODE_GROUPS,
-        "allow_text_detection": True,
-    },
-    {
-        "field_name": "den",
-        "response_key": "den",
-        "value_kind": "multi",
-        "groups": DEN_GROUPS,
-        "allow_text_detection": True,
-    },
-    {
-        "field_name": "tech",
-        "response_key": "tech",
-        "value_kind": "multi",
-        "groups": TECH_GROUPS,
-        "allow_text_detection": True,
-    },
-    {
-        "field_name": "product_name",
-        "response_key": "product_name",
-        "value_kind": "single",
-        "keyword_rules": SPECIAL_PRODUCT_KEYWORD_RULES,
-        "allow_text_detection": True,
-    },
-    {
-        "field_name": "line_name",
-        "response_key": "line_name",
-        "value_kind": "single",
-        "allow_text_detection": True,
-    },
-    {
-        "field_name": "mcp_no",
-        "response_key": "mcp_no",
-        "value_kind": "single",
-        "allow_text_detection": True,
-    },
+    *GROUP_PARAMETER_FIELD_SPECS,
+    *CODE_PARAMETER_FIELD_SPECS,
+    *SINGLE_VALUE_PARAMETER_FIELD_SPECS,
 ]
 
 
@@ -613,6 +641,12 @@ def build_domain_knowledge_prompt() -> str:
     lines.append("\n## 사용 가능한 필터 필드")
     for key, field in FILTER_FIELDS.items():
         lines.append(f"- {field['field_name']} ({key}): {field['description']}")
+
+    lines.append("\n## 파라미터 추출 스펙 요약")
+    lines.append("- 그룹형 필드: process, pkg_type1, pkg_type2, mode, den, tech")
+    lines.append("- 코드형 필드: oper_num")
+    lines.append("- 단일 값 필드: product_name, line_name, mcp_no")
+    lines.append("- LLM은 먼저 질문을 읽고 값을 뽑고, 이후 도메인 스펙에 따라 값이 정규화된다.")
 
     lines.append("\n## 공정 (process) 필터 규칙")
     lines.append("사용자가 그룹명이나 유사어로 언급하면 actual_values 전체를 process 필터로 사용한다.")

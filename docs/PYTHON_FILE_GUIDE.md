@@ -121,6 +121,11 @@
 
 ### [manufacturing_agent/domain/knowledge.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/domain/knowledge.py)
 - 제조 도메인의 기본 상수와 규칙을 담고 있습니다.
+- 파라미터 추출 관점에서는 아래 세 묶음만 먼저 보면 구조가 바로 읽힙니다.
+  - `GROUP_PARAMETER_FIELD_SPECS`
+  - `CODE_PARAMETER_FIELD_SPECS`
+  - `SINGLE_VALUE_PARAMETER_FIELD_SPECS`
+- 최종적으로 [parameter_service.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/services/parameter_service.py)는 `PARAMETER_FIELD_SPECS` 하나를 읽어 공통 처리합니다.
 
 ### [manufacturing_agent/domain/registry.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/domain/registry.py)
 - 사용자 정의 도메인 규칙을 저장하고 조회합니다.
