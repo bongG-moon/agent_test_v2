@@ -1,11 +1,15 @@
+import json
 from pathlib import Path
 
 from langflow_version.components import ManufacturingAgentComponent
 from langflow_version.workflow import build_initial_state, resolve_request_step, run_langflow_workflow
 from manufacturing_agent.agent import extract_params_component, run_agent
+from manufacturing_agent.data.retrieval import get_production_data
 from manufacturing_agent.domain import registry
-from manufacturing_agent.services import parameter_service, request_context, response_service
+from manufacturing_agent.services import parameter_service, request_context, response_service, retrieval_planner
+from manufacturing_agent.services.merge_service import build_analysis_base_table
 from manufacturing_agent.services.query_mode import choose_query_mode
+from manufacturing_agent.services.runtime_service import ensure_filtered_result_rows
 from manufacturing_agent.shared.text_sanitizer import sanitize_markdown_text
 
 
@@ -25,6 +29,14 @@ class _FakeLLM:
 def _stub_llms(monkeypatch, content="{}"):
     monkeypatch.setattr(parameter_service, "get_llm", lambda *args, **kwargs: _FakeLLM(content))
     monkeypatch.setattr(request_context, "get_llm", lambda *args, **kwargs: _FakeLLM(content))
+
+
+def _stub_retrieval_planner_llm(monkeypatch, payload):
+    monkeypatch.setattr(
+        retrieval_planner,
+        "get_llm_for_task",
+        lambda *_args, **_kwargs: _FakeLLM(json.dumps(payload, ensure_ascii=False)),
+    )
 
 
 def test_project_has_beginner_friendly_package_layout():
@@ -146,7 +158,7 @@ def test_langflow_component_module_imports_without_langflow_installed():
 
 
 def test_sanitize_markdown_text_preserves_numeric_ranges_without_strikethrough():
-    text = "목표 7,000~~7,200건 대비 약 20~~30% 잔여 생산량"
+    text = "목표 7,000~~7,200건 대비 약 20~~30% 잔여 생산"
     sanitized = sanitize_markdown_text(text)
 
     assert "7,000~7,200" in sanitized
@@ -158,7 +170,7 @@ def test_generate_response_sanitizes_accidental_strikethrough(monkeypatch):
     monkeypatch.setattr(response_service, "get_llm_for_task", lambda *_args, **_kwargs: _FakeLLM("7,000~~7,200건 / 20~~30%"))
 
     result = response_service.generate_response(
-        user_input="달성률 알려줘",
+        user_input="성과를 알려줘",
         result={"summary": "테스트", "data": [], "analysis_plan": {}},
         chat_history=[],
     )
@@ -166,3 +178,117 @@ def test_generate_response_sanitizes_accidental_strikethrough(monkeypatch):
     assert "7,000~7,200건" in result
     assert "20~30%" in result
     assert "~~" not in result
+
+
+def test_plan_retrieval_request_uses_target_for_achievement_rate_synonym(monkeypatch):
+    _stub_retrieval_planner_llm(
+        monkeypatch,
+        {
+            "dataset_keys": ["production"],
+            "needs_post_processing": False,
+            "analysis_goal": "single dataset only",
+        },
+    )
+
+    plan = retrieval_planner.plan_retrieval_request(
+        "오늘 DA공정에서 DDR5제품의 생산 달성율을 알려줘",
+        [],
+        None,
+    )
+
+    assert set(plan["dataset_keys"]) == {"production", "target"}
+    assert plan["needs_post_processing"] is True
+
+
+def test_plan_retrieval_request_combines_achievement_and_saturation(monkeypatch):
+    _stub_retrieval_planner_llm(
+        monkeypatch,
+        {
+            "dataset_keys": ["production"],
+            "needs_post_processing": False,
+            "analysis_goal": "single dataset only",
+        },
+    )
+
+    plan = retrieval_planner.plan_retrieval_request(
+        "오늘 DA공정에서 DDR5제품의 생산 달성율과 생산 포화율을 알려줘",
+        [],
+        None,
+    )
+
+    assert set(plan["dataset_keys"]) == {"production", "target", "wip"}
+    assert plan["needs_post_processing"] is True
+
+
+def test_plan_retrieval_request_prefers_explicit_dataset_listing(monkeypatch):
+    _stub_retrieval_planner_llm(
+        monkeypatch,
+        {
+            "dataset_keys": ["production", "target", "defect"],
+            "needs_post_processing": True,
+            "analysis_goal": "wrong llm choice",
+        },
+    )
+
+    plan = retrieval_planner.plan_retrieval_request(
+        "오늘 생산량/재공/목표 값을 보여줘",
+        [],
+        None,
+    )
+
+    assert plan["dataset_keys"] == ["production", "target", "wip"]
+    assert plan["needs_post_processing"] is False
+
+
+def test_ensure_filtered_result_rows_applies_final_filter_to_display_table():
+    raw_result = get_production_data({"date": "20260406"})
+    raw_result["dataset_key"] = "production"
+    raw_result["dataset_label"] = "생산"
+
+    filtered_result = ensure_filtered_result_rows(
+        raw_result,
+        {"date": "20260406", "process_name": ["D/A1"], "mode": ["DDR5"]},
+    )
+
+    assert filtered_result["data"]
+    assert all(row["OPER_NAME"] == "D/A1" for row in filtered_result["data"])
+    assert all(row["MODE"] == "DDR5" for row in filtered_result["data"])
+
+
+def test_build_analysis_base_table_handles_empty_dataset_without_index_error():
+    params = {
+        "date": "20260406",
+        "process_name": ["D/A1"],
+        "mode": ["DDR5"],
+        "oper_num": None,
+        "pkg_type1": None,
+        "pkg_type2": None,
+        "product_name": None,
+        "line_name": None,
+        "den": None,
+        "tech": None,
+        "lead": None,
+        "mcp_no": None,
+    }
+    production = get_production_data(params)
+    production["dataset_key"] = "production"
+    production["dataset_label"] = "생산"
+
+    target = retrieval_planner.execute_retrieval_jobs([{"dataset_key": "target", "params": params, "result_label": None}])[0]
+
+    empty_wip = {
+        "success": True,
+        "tool_name": "get_wip_status",
+        "dataset_key": "wip",
+        "dataset_label": "WIP",
+        "data": [],
+        "summary": "총 0건",
+    }
+
+    result = build_analysis_base_table(
+        [production, target, empty_wip],
+        "오늘 DA공정에서 DDR5제품의 생산 달성율과 생산 포화율을 알려줘",
+    )
+
+    assert result["success"] is True
+    assert result["data"]

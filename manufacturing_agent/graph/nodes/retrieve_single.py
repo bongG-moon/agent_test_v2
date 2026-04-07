@@ -4,7 +4,7 @@ from ...graph.state import AgentGraphState
 from ...services.request_context import attach_result_metadata
 from ...services.response_service import generate_response
 from ...services.retrieval_planner import execute_retrieval_jobs
-from ...services.runtime_service import mark_primary_result, run_analysis_after_retrieval
+from ...services.runtime_service import ensure_filtered_result_rows, mark_primary_result, run_analysis_after_retrieval
 
 
 def single_retrieval_node(state: AgentGraphState) -> AgentGraphState:
@@ -18,6 +18,7 @@ def single_retrieval_node(state: AgentGraphState) -> AgentGraphState:
 
     result = execute_retrieval_jobs([single_job])[0]
     result = attach_result_metadata(result, single_job["params"], result.get("tool_name", ""))
+    result = ensure_filtered_result_rows(result, single_job["params"])
 
     if result.get("success"):
         post_processed = run_analysis_after_retrieval(

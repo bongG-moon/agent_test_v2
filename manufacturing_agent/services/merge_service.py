@@ -237,23 +237,26 @@ def select_default_join_type(
     return "outer"
 
 
-def plan_merge_strategy(tool_results: List[Dict[str, Any]], frames: List[pd.DataFrame], user_input: str) -> Dict[str, Any]:
+def plan_merge_strategy(prepared_results: List[Dict[str, Any]], frames: List[pd.DataFrame], user_input: str) -> Dict[str, Any]:
     """여러 테이블을 어떤 순서와 key 로 합칠지 계획을 만든다."""
 
-    exclude_date = should_exclude_date_from_join(tool_results)
+    if not prepared_results or not frames or len(prepared_results) != len(frames):
+        return {"base_index": 0, "requested_dimensions": [], "steps": []}
+
+    exclude_date = should_exclude_date_from_join(prepared_results)
     requested_dimensions = resolve_requested_dimensions(user_input, frames)
     base_index = 0
 
     join_rules = get_registered_join_rules()
-    for index, result in enumerate(tool_results):
+    for index, result in enumerate(prepared_results):
         dataset_key = raw_dataset_key(result.get("dataset_key", ""))
         if any(normalize_text(rule.get("base_dataset", "")) == normalize_text(dataset_key) for rule in join_rules):
             base_index = index
             break
 
     steps: List[Dict[str, Any]] = []
-    base_dataset = raw_dataset_key(tool_results[base_index].get("dataset_key", ""))
-    for index, result in enumerate(tool_results):
+    base_dataset = raw_dataset_key(prepared_results[base_index].get("dataset_key", ""))
+    for index, result in enumerate(prepared_results):
         if index == base_index:
             continue
 
@@ -277,7 +280,7 @@ def plan_merge_strategy(tool_results: List[Dict[str, Any]], frames: List[pd.Data
                 join_columns = pick_join_columns(frames[base_index], frames[index], requested_dimensions, exclude_date)
         else:
             join_columns = pick_join_columns(frames[base_index], frames[index], requested_dimensions, exclude_date)
-            how = select_default_join_type(user_input, tool_results, base_dataset, right_dataset)
+            how = select_default_join_type(user_input, prepared_results, base_dataset, right_dataset)
 
         steps.append(
             {
@@ -349,6 +352,7 @@ def build_analysis_base_table(tool_results: List[Dict[str, Any]], user_input: st
     """
 
     prepared_frames: List[pd.DataFrame] = []
+    prepared_results: List[Dict[str, Any]] = []
     source_names: List[str] = []
     suffix_metrics = should_suffix_metrics(tool_results)
 
@@ -369,6 +373,7 @@ def build_analysis_base_table(tool_results: List[Dict[str, Any]], user_input: st
             frame = frame.rename(columns=rename_map)
 
         prepared_frames.append(frame.copy())
+        prepared_results.append(result)
         source_names.append(str(result.get("result_label") or result.get("dataset_label") or result.get("tool_name", "unknown")))
 
     if not prepared_frames:
@@ -379,7 +384,15 @@ def build_analysis_base_table(tool_results: List[Dict[str, Any]], user_input: st
             "data": [],
         }
 
-    merge_plan = plan_merge_strategy(tool_results, prepared_frames, user_input)
+    if len(prepared_frames) < 2:
+        return {
+            "success": False,
+            "tool_name": "analysis_base_table",
+            "error_message": "분석용 기준 테이블을 만들기에는 병합 가능한 데이터가 부족합니다.",
+            "data": [],
+        }
+
+    merge_plan = plan_merge_strategy(prepared_results, prepared_frames, user_input)
     if not merge_plan.get("steps"):
         return {
             "success": False,
@@ -391,7 +404,7 @@ def build_analysis_base_table(tool_results: List[Dict[str, Any]], user_input: st
     merged_df = prepared_frames[merge_plan["base_index"]]
     applied_join_columns: List[str] = []
     merge_notes: List[str] = []
-    exclude_date = should_exclude_date_from_join(tool_results)
+    exclude_date = should_exclude_date_from_join(prepared_results)
 
     for step in merge_plan["steps"]:
         next_df = prepared_frames[step["right_index"]]

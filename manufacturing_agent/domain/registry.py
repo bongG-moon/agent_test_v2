@@ -127,7 +127,76 @@ DEFAULT_ANALYSIS_RULES = [
     },
 ]
 
-DEFAULT_JOIN_RULES: List[Dict[str, Any]] = []
+DEFAULT_ANALYSIS_RULES.extend(
+    [
+        {
+            "name": "achievement_rate_kr",
+            "display_name": "achievement rate korean",
+            "synonyms": ["달성률", "달성율", "생산 달성률", "생산 달성율", "목표 대비 생산"],
+            "required_datasets": ["production", "target"],
+            "required_columns": ["production", "target"],
+            "source_columns": [
+                {"dataset_key": "production", "column": "production", "role": "numerator"},
+                {"dataset_key": "target", "column": "target", "role": "denominator"},
+            ],
+            "calculation_mode": "ratio",
+            "output_column": "achievement_rate",
+            "default_group_by": ["OPER_NAME"],
+            "condition": "",
+            "decision_rule": "",
+            "formula": "production / target",
+            "pandas_hint": "group by OPER_NAME and calculate production / target",
+            "description": "Calculate production achievement rate using production and target.",
+            "source": "builtin",
+        },
+        {
+            "name": "production_saturation_rate",
+            "display_name": "production saturation rate",
+            "synonyms": [
+                "production saturation",
+                "production saturation rate",
+                "포화율",
+                "생산 포화율",
+                "생산포화율",
+                "포화도",
+            ],
+            "required_datasets": ["production", "wip"],
+            "required_columns": ["production", "재공수량"],
+            "source_columns": [
+                {"dataset_key": "production", "column": "production", "role": "numerator"},
+                {"dataset_key": "wip", "column": "재공수량", "role": "denominator"},
+            ],
+            "calculation_mode": "ratio",
+            "output_column": "production_saturation_rate",
+            "default_group_by": ["OPER_NAME"],
+            "condition": "",
+            "decision_rule": "",
+            "formula": "production / 재공수량",
+            "pandas_hint": "group by OPER_NAME and calculate production / 재공수량",
+            "description": "Calculate production saturation rate using production and WIP quantity.",
+            "source": "builtin",
+        },
+    ]
+)
+
+DEFAULT_JOIN_RULES: List[Dict[str, Any]] = [
+    {
+        "name": "production_target_join",
+        "base_dataset": "production",
+        "join_dataset": "target",
+        "join_type": "left",
+        "join_keys": ["WORK_DT", "OPER_NAME", "공정군", "라인", "MODE", "DEN"],
+        "description": "Join production and target rows with common manufacturing dimensions.",
+    },
+    {
+        "name": "production_wip_join",
+        "base_dataset": "production",
+        "join_dataset": "wip",
+        "join_type": "left",
+        "join_keys": ["WORK_DT", "OPER_NAME", "공정군", "라인", "MODE", "DEN"],
+        "description": "Join production and WIP rows with common manufacturing dimensions.",
+    },
+]
 
 
 def _ensure_registry_dirs() -> None:

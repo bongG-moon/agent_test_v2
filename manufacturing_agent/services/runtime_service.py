@@ -8,7 +8,7 @@
 from typing import Any, Dict, List
 
 from ..analysis.engine import execute_analysis_query
-from ..data.retrieval import build_current_datasets, dataset_requires_date, pick_retrieval_tools
+from ..data.retrieval import build_current_datasets, dataset_requires_date, filter_rows_by_params, pick_retrieval_tools
 from .merge_service import build_analysis_base_table, build_multi_dataset_overview
 from .query_mode import needs_post_processing, prune_followup_params
 from .request_context import (
@@ -36,6 +36,35 @@ def mark_primary_result(tool_results: List[Dict[str, Any]], primary_index: int) 
     for index, result in enumerate(tool_results):
         result["display_expanded"] = index == primary_index
     return tool_results
+
+
+def ensure_filtered_result_rows(result: Dict[str, Any], extracted_params: Dict[str, Any]) -> Dict[str, Any]:
+    """조회 결과 표에 필터가 실제로 반영되었는지 마지막으로 한 번 더 보정한다.
+
+    원래 각 retrieval 함수 안에서 필터가 적용되지만, 사용자가 보는 마지막
+    `current_data` 와 `tool_results` 에는 필터된 row 만 남도록 여기서 다시 정리한다.
+    필터 적용 후 row 수가 바뀌면 summary 에도 간단한 안내를 덧붙인다.
+    """
+
+    if not result.get("success"):
+        return result
+
+    rows = result.get("data", [])
+    if not isinstance(rows, list) or not rows:
+        return result
+
+    filtered_rows = filter_rows_by_params(rows, extracted_params)
+    if len(filtered_rows) == len(rows):
+        return result
+
+    updated = dict(result)
+    updated["data"] = filtered_rows
+
+    summary = str(updated.get("summary", "")).strip()
+    filter_note = f"필터 적용 후 {len(filtered_rows)}건"
+    updated["summary"] = f"{summary} | {filter_note}" if summary else filter_note
+    updated["available_columns"] = get_current_table_columns(updated)
+    return updated
 
 
 def run_analysis_after_retrieval(
@@ -143,6 +172,10 @@ def run_multi_retrieval_jobs(
     source_results = execute_retrieval_jobs(jobs)
     for result, job in zip(source_results, jobs):
         attach_result_metadata(result, job["params"], result.get("tool_name", ""))
+    source_results = [
+        ensure_filtered_result_rows(result, job["params"])
+        for result, job in zip(source_results, jobs)
+    ]
 
     failed_results = [result for result in source_results if not result.get("success")]
     if failed_results:
@@ -316,6 +349,7 @@ def run_retrieval(
     single_job = jobs[0]
     result = execute_retrieval_jobs([single_job])[0]
     result = attach_result_metadata(result, single_job["params"], result.get("tool_name", ""))
+    result = ensure_filtered_result_rows(result, single_job["params"])
 
     if result.get("success"):
         post_processed = run_analysis_after_retrieval(

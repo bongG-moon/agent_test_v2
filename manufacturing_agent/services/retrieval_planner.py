@@ -1,4 +1,4 @@
-"""원천 데이터 조회 계획을 세우는 서비스."""
+"""원천 데이터 조회 계획과 실제 실행 job 생성을 담당하는 서비스."""
 
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
@@ -27,16 +27,87 @@ from .request_context import (
 )
 
 
+EXPLICIT_DATASET_KEYWORDS = {
+    "production": ["생산", "생산량", "실적", "production"],
+    "target": ["목표", "목표량", "계획", "target"],
+    "wip": ["재공", "wip", "대기"],
+    "equipment": ["설비", "가동률", "equipment"],
+    "defect": ["불량", "결함", "defect"],
+    "yield": ["수율", "yield"],
+    "hold": ["홀드", "보류", "hold"],
+    "scrap": ["스크랩", "폐기", "scrap"],
+    "recipe": ["레시피", "공정 조건", "recipe"],
+    "lot_trace": ["lot", "로트", "이력", "추적", "trace"],
+}
+
+
+def _dedupe_dataset_keys(dataset_keys: List[str]) -> List[str]:
+    """등록된 dataset key만 남기면서 순서를 유지해 중복을 제거한다."""
+
+    ordered: List[str] = []
+    for dataset_key in dataset_keys:
+        if dataset_key in DATASET_REGISTRY and dataset_key not in ordered:
+            ordered.append(dataset_key)
+    return ordered
+
+
+def _infer_explicit_dataset_keys(user_input: str) -> List[str]:
+    """질문에 직접 언급된 dataset 키를 규칙 기반으로 읽어낸다."""
+
+    normalized_query = normalize_text(user_input)
+    detected_keys: List[str] = []
+
+    for dataset_key, keywords in EXPLICIT_DATASET_KEYWORDS.items():
+        if any(normalize_text(keyword) in normalized_query for keyword in keywords):
+            detected_keys.append(dataset_key)
+
+    return _dedupe_dataset_keys(detected_keys)
+
+
+def _infer_derived_metric_dataset_keys(user_input: str) -> List[str]:
+    """파생 지표 질문이면 필요한 원본 dataset 조합을 미리 보강한다."""
+
+    normalized_query = normalize_text(user_input)
+    derived_keys: List[str] = []
+
+    achievement_tokens = ["achievement rate", "달성률", "달성율", "생산 달성률", "생산 달성율", "목표 대비 생산"]
+    saturation_tokens = ["production saturation", "production saturation rate", "포화율", "생산 포화율", "생산포화율", "포화도"]
+
+    if any(normalize_text(token) in normalized_query for token in achievement_tokens):
+        derived_keys.extend(["production", "target"])
+
+    if any(normalize_text(token) in normalized_query for token in saturation_tokens):
+        derived_keys.extend(["production", "wip"])
+
+    return _dedupe_dataset_keys(derived_keys)
+
+
+def _is_explicit_dataset_listing_query(user_input: str, explicit_dataset_keys: List[str], matched_rules: List[Dict[str, Any]]) -> bool:
+    """질문이 파생 분석이 아니라 dataset 자체를 나열해서 보여 달라는 요청인지 판단한다."""
+
+    normalized_query = normalize_text(user_input)
+    if matched_rules:
+        return False
+    if len(explicit_dataset_keys) < 2:
+        return False
+    if any(token in normalized_query for token in POST_PROCESSING_KEYWORDS):
+        return False
+    return any(token in str(user_input or "") for token in ["/", ",", " 및 ", "와 ", "값"])
+
+
 def plan_retrieval_request(
     user_input: str,
     chat_history: List[Dict[str, str]],
     current_data: Dict[str, Any] | None,
     retry_context: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
-    """질문에 필요한 원천 데이터셋을 고른다.
+    """질문에 필요한 원천 dataset 조합을 결정한다.
 
-    이 함수는 "무슨 데이터를 가져와야 최종 답을 만들 수 있는가?" 에 집중한다.
-    단순 키워드 매칭만 쓰지 않고, LLM 계획 + 규칙 기반 보강을 함께 사용한다.
+    기본 흐름은 LLM 계획을 먼저 받아오되, 아래 규칙 기반 보강을 반드시 거친다.
+    1. 질문에 직접 등장한 dataset 키워드 보강
+    2. 등록된 분석 규칙이 요구하는 dataset 보강
+    3. 달성률/포화율 같은 파생 지표의 필수 dataset 보강
+    4. 명시적 dataset 나열 질문이면 LLM보다 규칙 결과를 우선
     """
 
     current_columns = get_current_table_columns(current_data)
@@ -53,6 +124,7 @@ Previous selection review:
 If the previous selection was not enough to answer the user's real question,
 add the missing base datasets this time.
 """
+
     prompt = f"""You are planning which registered datasets should be retrieved for a manufacturing assistant.
 Return JSON only.
 
@@ -93,14 +165,28 @@ Return only:
         parsed = {}
 
     dataset_keys = [key for key in parsed.get("dataset_keys", []) if key in DATASET_REGISTRY]
-    rule_based_keys = [key for key in pick_retrieval_tools(user_input) if key in DATASET_REGISTRY]
     matched_rules = match_registered_analysis_rules(user_input)
+    explicit_dataset_keys = _infer_explicit_dataset_keys(user_input)
+    derived_dataset_keys = _infer_derived_metric_dataset_keys(user_input)
+    rule_based_keys = _dedupe_dataset_keys(
+        [
+            *pick_retrieval_tools(user_input),
+            *explicit_dataset_keys,
+            *derived_dataset_keys,
+            *[
+                dataset_key
+                for rule in matched_rules
+                for dataset_key in rule.get("required_datasets", [])
+            ],
+        ]
+    )
     normalized_query = normalize_text(user_input)
 
-    # 단순한 단일 조회 질문은 규칙 기반 결과를 우선 믿어도 충분하다.
-    if (
+    # 파생 지표 질문이나 dataset 다중 나열 질문은 규칙 기반 결과를 우선한다.
+    if matched_rules or derived_dataset_keys or len(explicit_dataset_keys) >= 2:
+        dataset_keys = list(rule_based_keys)
+    elif (
         rule_based_keys
-        and not matched_rules
         and len(rule_based_keys) == 1
         and len(dataset_keys) <= 1
         and not parsed.get("needs_post_processing", False)
@@ -109,23 +195,20 @@ Return only:
     elif len(rule_based_keys) >= 2 and len(dataset_keys) <= 1:
         dataset_keys = list(dict.fromkeys([*dataset_keys, *rule_based_keys]))
 
-    for rule in matched_rules:
-        for dataset_key in rule.get("required_datasets", []):
-            if dataset_key in DATASET_REGISTRY and dataset_key not in dataset_keys:
-                dataset_keys.append(dataset_key)
-
     simple_single_dataset_request = (
         len(dataset_keys) == 1
         and not matched_rules
+        and not derived_dataset_keys
         and not mentions_grouping_expression(user_input)
         and not any(token in normalized_query for token in POST_PROCESSING_KEYWORDS)
     )
+    explicit_dataset_listing_request = _is_explicit_dataset_listing_query(user_input, explicit_dataset_keys, matched_rules)
 
     return {
         "dataset_keys": dataset_keys,
         "needs_post_processing": False
-        if simple_single_dataset_request
-        else bool(parsed.get("needs_post_processing", False) or matched_rules),
+        if simple_single_dataset_request or explicit_dataset_listing_request
+        else bool(parsed.get("needs_post_processing", False) or matched_rules or derived_dataset_keys),
         "analysis_goal": str(parsed.get("analysis_goal", "")).strip()
         or ", ".join(str(rule.get("display_name") or rule.get("name")) for rule in matched_rules[:2]),
     }
@@ -136,11 +219,7 @@ def review_retrieval_sufficiency(
     source_results: List[Dict[str, Any]],
     retrieval_plan: Dict[str, Any] | None,
 ) -> Dict[str, Any]:
-    """선택한 데이터셋만으로 진짜 답을 만들 수 있는지 재검토한다.
-
-    예를 들어 처음에는 `production` 만 뽑았지만,
-    실제 질문이 달성률이었다면 `target` 도 더 필요할 수 있다.
-    """
+    """현재 선택한 dataset만으로 최종 질문을 답할 수 있는지 재검토한다."""
 
     if not source_results:
         return {"is_sufficient": True, "missing_dataset_keys": [], "reason": ""}
@@ -207,11 +286,11 @@ def build_missing_date_message(retrieval_keys: List[str]) -> str:
             f" ({', '.join(labels)}). "
             "예를 들어 오늘, 어제, 20260324 처럼 날짜를 함께 적어 주세요."
         )
-    return "이 조회는 날짜 조건이 있어야 실행할 수 있습니다."
+    return "조회에 필요한 날짜 조건이 없어 실행할 수 없습니다."
 
 
 def extract_date_slices(user_input: str, default_date: str | None) -> List[Dict[str, str]]:
-    """질문 안에서 날짜 범위를 추출해 retrieval job 단위로 나눈다."""
+    """질문 속 날짜 표현을 retrieval job 단위로 분해한다."""
 
     normalized = normalize_text(user_input)
     slices: List[Dict[str, str]] = []
@@ -235,7 +314,7 @@ def extract_date_slices(user_input: str, default_date: str | None) -> List[Dict[
 
 
 def build_retrieval_jobs(user_input: str, extracted_params: Dict[str, Any], retrieval_keys: List[str]) -> List[Dict[str, Any]]:
-    """조회 계획을 실제 실행 단위(job) 리스트로 변환한다."""
+    """조회 계획을 실제 실행 가능한 job 목록으로 바꾼다."""
 
     jobs: List[Dict[str, Any]] = []
     date_slices = extract_date_slices(user_input, extracted_params.get("date"))
@@ -258,7 +337,7 @@ def build_retrieval_jobs(user_input: str, extracted_params: Dict[str, Any], retr
 
 
 def execute_retrieval_jobs(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """job 리스트를 실제 조회 함수 실행으로 바꾼다."""
+    """job 목록을 실제 retrieval 함수 실행 결과로 바꾼다."""
 
     import re
 
@@ -286,7 +365,7 @@ def should_retry_retrieval_plan(
     source_results: List[Dict[str, Any]],
     analysis_result: Dict[str, Any],
 ) -> bool:
-    """초기 조회 계획이 부족해서 다시 계획을 세워야 하는지 판단한다."""
+    """초기 조회 계획이 부족해 다시 planning 해야 하는지 판단한다."""
 
     if not retrieval_plan or not retrieval_plan.get("needs_post_processing"):
         return False

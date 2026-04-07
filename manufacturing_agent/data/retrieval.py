@@ -270,6 +270,20 @@ def _apply_common_filters(rows: List[Dict[str, Any]], params: Dict[str, Any]) ->
     return filtered
 
 
+def filter_rows_by_params(rows: List[Dict[str, Any]], params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """이미 조회한 row 목록에 공통 필터를 다시 적용한다.
+
+    실제 조회 함수도 내부적으로 같은 필터를 사용하지만,
+    실행 경로가 복잡해졌을 때 화면에 보여줄 최종 테이블에는
+    필터가 확실히 반영되도록 마지막 안전장치로 한 번 더 사용한다.
+    """
+
+    if not isinstance(rows, list):
+        return []
+    safe_rows = [row for row in rows if isinstance(row, dict)]
+    return _apply_common_filters(safe_rows, params or {})
+
+
 def _iter_valid_process_product_pairs():
     for spec in PROCESS_SPECS:
         for product in PRODUCTS:
