@@ -8,48 +8,10 @@ from typing import Any, Dict, List
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..analysis.contracts import RequiredParams
-from ..domain.knowledge import (
-    DEN_GROUPS,
-    INDIVIDUAL_PROCESSES,
-    MODE_GROUPS,
-    PKG_TYPE1_GROUPS,
-    PKG_TYPE2_GROUPS,
-    PROCESS_GROUPS,
-    PROCESS_KEYWORD_RULES,
-    PROCESS_SPECS,
-    SPECIAL_PRODUCT_KEYWORD_RULES,
-    TECH_GROUPS,
-    build_domain_knowledge_prompt,
-)
-from ..domain.registry import (
-    build_registered_domain_prompt,
-    detect_registered_values,
-    expand_registered_values,
-)
+from ..domain.knowledge import PARAMETER_FIELD_SPECS, build_domain_knowledge_prompt
+from ..domain.registry import build_registered_domain_prompt, detect_registered_values, expand_registered_values
 from ..shared.config import SYSTEM_PROMPT, get_llm
 from ..shared.filter_utils import normalize_text
-
-
-OPER_NUM_PATTERNS = [
-    r"(?:공정번호|oper_num|oper|operation)\s*[:=]?\s*(\d{4})",
-    r"(\d{4})\s*번?\s*공정",
-]
-
-OPER_NUM_VALUES = [spec["OPER_NUM"] for spec in PROCESS_SPECS]
-
-
-GROUP_FIELD_SPECS = [
-    {
-        "field_name": "process_name",
-        "groups": PROCESS_GROUPS,
-        "literal_values": INDIVIDUAL_PROCESSES + ["INPUT"],
-    },
-    {"field_name": "mode", "groups": MODE_GROUPS, "literal_values": None},
-    {"field_name": "den", "groups": DEN_GROUPS, "literal_values": None},
-    {"field_name": "tech", "groups": TECH_GROUPS, "literal_values": None},
-    {"field_name": "pkg_type1", "groups": PKG_TYPE1_GROUPS, "literal_values": None},
-    {"field_name": "pkg_type2", "groups": PKG_TYPE2_GROUPS, "literal_values": None},
-]
 
 
 def _get_llm_for_task(task: str):
@@ -124,32 +86,34 @@ def _contains_alias(text: str, alias: str) -> bool:
     return bool(re.search(pattern, normalized_text, flags=re.IGNORECASE))
 
 
-def _find_keyword_rule_targets(text: Any, keyword_rules: List[Dict[str, Any]]) -> List[str] | None:
-    """도메인 키워드 규칙 목록을 보고 질문이나 값에서 목표 값을 찾는다."""
+def _match_keyword_rules(text: Any, keyword_rules: List[Dict[str, Any]] | None) -> List[str] | None:
+    """도메인 키워드 규칙에서 목표 값을 찾는다."""
 
     matched_targets: List[str] = []
-    for rule in keyword_rules:
+    for rule in keyword_rules or []:
         aliases = rule.get("aliases", [])
         if any(_contains_alias(str(text or ""), alias) for alias in aliases):
             matched_targets.append(str(rule.get("target_value", "")).strip())
     return _merge_unique_values(matched_targets)
 
 
-def _canonicalize_group_values(
+def _expand_group_values(
     raw_values: Any,
-    groups: Dict[str, Dict[str, Any]],
+    groups: Dict[str, Dict[str, Any]] | None,
     literal_values: List[str] | None = None,
 ) -> List[str] | None:
-    """LLM이 뽑은 값이 그룹 이름이면 실제 값 목록으로 확장한다."""
+    """LLM이 뽑아낸 그룹형 값을 실제 조회 값 목록으로 확장한다."""
 
-    canonical_values: List[str] = []
+    if not groups:
+        return _merge_unique_values(raw_values)
+
+    expanded_values: List[str] = []
     for raw_value in _merge_unique_values(raw_values) or []:
         matched = False
-
         for group in groups.values():
             aliases = [*group.get("synonyms", []), *group.get("actual_values", [])]
             if any(normalize_text(raw_value) == normalize_text(alias) for alias in aliases):
-                canonical_values.extend(group.get("actual_values", []))
+                expanded_values.extend(group.get("actual_values", []))
                 matched = True
                 break
 
@@ -158,25 +122,27 @@ def _canonicalize_group_values(
 
         for literal_value in literal_values or []:
             if normalize_text(raw_value) == normalize_text(literal_value):
-                canonical_values.append(literal_value)
+                expanded_values.append(literal_value)
                 matched = True
                 break
 
         if not matched:
-            canonical_values.append(raw_value)
+            expanded_values.append(raw_value)
 
-    return _merge_unique_values(canonical_values)
+    return _merge_unique_values(expanded_values)
 
 
 def _detect_group_values_from_text(
     text: str,
-    groups: Dict[str, Dict[str, Any]],
+    groups: Dict[str, Dict[str, Any]] | None,
     literal_values: List[str] | None = None,
 ) -> List[str] | None:
-    """질문 전체를 보고 그룹 별칭이나 실제 값을 직접 탐지한다."""
+    """질문 원문에서 그룹형 값을 직접 찾는다."""
+
+    if not groups:
+        return None
 
     detected_values: List[str] = []
-
     for group in groups.values():
         aliases = [*group.get("synonyms", []), *group.get("actual_values", [])]
         if any(_contains_alias(text, alias) for alias in aliases):
@@ -189,16 +155,16 @@ def _detect_group_values_from_text(
     return _merge_unique_values(detected_values)
 
 
-def _detect_candidate_values(
+def _detect_candidate_values_from_text(
     text: str,
-    candidates: List[str] | None = None,
+    candidate_values: List[str] | None = None,
     patterns: List[str] | None = None,
 ) -> List[str] | None:
-    """그룹이 아닌 코드형 값은 후보 목록과 정규식 패턴을 함께 사용해 탐지한다."""
+    """코드형 값은 후보 목록과 패턴을 사용해 원문에서 찾는다."""
 
     detected_values: List[str] = []
 
-    for candidate in candidates or []:
+    for candidate in candidate_values or []:
         if _contains_alias(text, candidate):
             detected_values.append(candidate)
 
@@ -213,106 +179,77 @@ def _detect_candidate_values(
     return _merge_unique_values(detected_values)
 
 
-def _resolve_group_field(
-    extracted_params: RequiredParams,
-    user_input: str,
-    field_name: str,
-    groups: Dict[str, Dict[str, Any]],
-    literal_values: List[str] | None = None,
-) -> None:
-    """그룹형 필드(process, mode, pkg 등)를 공통 규칙으로 보정한다."""
+def _normalize_single_value(field_name: str, value: Any, user_input: str) -> str | None:
+    """단일 값 필드는 등록 규칙과 텍스트 탐지를 거쳐 하나의 값으로 정리한다."""
 
-    current_value = _canonicalize_group_values(extracted_params.get(field_name), groups, literal_values=literal_values)
-    current_value = _merge_unique_values(
-        current_value,
-        expand_registered_values(field_name, current_value),
-    )
-
-    if not current_value:
-        current_value = _detect_group_values_from_text(user_input, groups, literal_values=literal_values)
-
-    extracted_params[field_name] = _merge_unique_values(
-        current_value,
-        detect_registered_values(field_name, user_input),
-    )
-
-
-def _resolve_oper_num_field(extracted_params: RequiredParams, user_input: str) -> None:
-    """OPER_NUM 은 도메인 값 목록과 패턴을 함께 사용해 탐지한다."""
-
-    current_value = _merge_unique_values(
-        extracted_params.get("oper_num"),
-        expand_registered_values("oper_num", extracted_params.get("oper_num")),
-    )
-
-    if not current_value:
-        current_value = _detect_candidate_values(
-            user_input,
-            candidates=OPER_NUM_VALUES,
-            patterns=OPER_NUM_PATTERNS,
-        )
-
-    extracted_params["oper_num"] = _merge_unique_values(
-        current_value,
-        detect_registered_values("oper_num", user_input),
-    )
-
-
-def _resolve_scalar_registered_field(
-    extracted_params: RequiredParams,
-    user_input: str,
-    field_name: str,
-) -> None:
-    """단일 값 필드는 등록 규칙 기반으로 하나의 대표 값을 고른다."""
-
-    expanded_value = expand_registered_values(field_name, extracted_params.get(field_name))
+    expanded_value = expand_registered_values(field_name, value)
     if expanded_value:
-        extracted_params[field_name] = expanded_value[0]
-        return
+        return expanded_value[0]
 
-    if extracted_params.get(field_name):
-        return
+    if value:
+        cleaned = str(value).strip()
+        return cleaned or None
 
     detected_value = detect_registered_values(field_name, user_input)
-    if detected_value:
-        extracted_params[field_name] = detected_value[0]
+    return detected_value[0] if detected_value else None
 
 
-def _resolve_keyword_based_scalar_field(
-    extracted_params: RequiredParams,
-    user_input: str,
-    field_name: str,
-    keyword_rules: List[Dict[str, Any]],
-) -> None:
-    """도메인 키워드 규칙으로 단일 값 필드를 정규화한다."""
+def _normalize_multi_value(field_name: str, value: Any, user_input: str, field_spec: Dict[str, Any]) -> List[str] | None:
+    """리스트형 필드는 LLM 추출값을 우선하고, 없을 때만 텍스트 기반 탐지를 사용한다."""
 
-    normalized_value = _find_keyword_rule_targets(extracted_params.get(field_name), keyword_rules)
-    if normalized_value:
-        extracted_params[field_name] = normalized_value[0]
+    normalized_value = _match_keyword_rules(value, field_spec.get("keyword_rules"))
+    normalized_value = _merge_unique_values(normalized_value, value)
+    normalized_value = _expand_group_values(
+        normalized_value,
+        field_spec.get("groups"),
+        literal_values=field_spec.get("literal_values"),
+    )
+    normalized_value = _merge_unique_values(
+        normalized_value,
+        expand_registered_values(field_name, normalized_value),
+    )
+
+    if not normalized_value and field_spec.get("allow_text_detection"):
+        normalized_value = _match_keyword_rules(user_input, field_spec.get("keyword_rules"))
+        normalized_value = _merge_unique_values(
+            normalized_value,
+            _detect_group_values_from_text(
+                user_input,
+                field_spec.get("groups"),
+                literal_values=field_spec.get("literal_values"),
+            ),
+            _detect_candidate_values_from_text(
+                user_input,
+                candidate_values=field_spec.get("candidate_values"),
+                patterns=field_spec.get("patterns"),
+            ),
+        )
+
+    normalized_value = _merge_unique_values(
+        normalized_value,
+        detect_registered_values(field_name, user_input),
+    )
+    return normalized_value
+
+
+def _normalize_field_value(field_spec: Dict[str, Any], extracted_params: RequiredParams, user_input: str) -> None:
+    """도메인 스펙 하나를 기준으로 필드 값을 정규화한다."""
+
+    field_name = field_spec["field_name"]
+    current_value = extracted_params.get(field_name)
+
+    if field_spec.get("value_kind") == "single":
+        keyword_value = _match_keyword_rules(current_value, field_spec.get("keyword_rules"))
+        if not keyword_value and field_spec.get("allow_text_detection"):
+            keyword_value = _match_keyword_rules(user_input, field_spec.get("keyword_rules"))
+        extracted_params[field_name] = _normalize_single_value(
+            field_name,
+            keyword_value[0] if keyword_value else current_value,
+            user_input,
+        )
         return
 
-    if extracted_params.get(field_name):
-        return
-
-    detected_value = _find_keyword_rule_targets(user_input, keyword_rules)
-    if detected_value:
-        extracted_params[field_name] = detected_value[0]
-
-
-def _resolve_keyword_based_process_field(
-    extracted_params: RequiredParams,
-    user_input: str,
-    keyword_rules: List[Dict[str, Any]],
-) -> None:
-    """질문 키워드를 공정 값으로 바꾸는 규칙을 적용한다."""
-
-    detected_processes = _find_keyword_rule_targets(user_input, keyword_rules)
-    if not extracted_params.get("process_name") and detected_processes:
-        extracted_params["process_name"] = detected_processes
-        return
-
-    if extracted_params.get("process_name") == ["INPUT"] and not detected_processes:
-        extracted_params["process_name"] = None
+    extracted_params[field_name] = _normalize_multi_value(field_name, current_value, user_input, field_spec)
 
 
 def _inherit_from_context(extracted_params: RequiredParams, context: Dict[str, Any] | None) -> RequiredParams:
@@ -374,32 +311,27 @@ def _fallback_date(text: str) -> str | None:
     return None
 
 
-def _apply_domain_overrides(extracted_params: RequiredParams, user_input: str) -> RequiredParams:
-    """LLM 초안에 도메인 규칙과 사용자 정의 규칙을 덧입혀 최종 필터로 정리한다."""
+def _build_initial_params(parsed: Dict[str, Any], user_input: str) -> RequiredParams:
+    """LLM JSON 응답을 내부 파라미터 구조로 옮긴다."""
 
-    _resolve_keyword_based_process_field(extracted_params, user_input, PROCESS_KEYWORD_RULES)
-    _resolve_keyword_based_scalar_field(
-        extracted_params,
-        user_input,
-        field_name="product_name",
-        keyword_rules=SPECIAL_PRODUCT_KEYWORD_RULES,
-    )
+    extracted_params: RequiredParams = {
+        "date": parsed.get("date") or _fallback_date(user_input),
+        "group_by": parsed.get("group_by"),
+        "metrics": [],
+        "lead": parsed.get("lead"),
+    }
 
-    for spec in GROUP_FIELD_SPECS:
-        _resolve_group_field(
-            extracted_params,
-            user_input,
-            field_name=spec["field_name"],
-            groups=spec["groups"],
-            literal_values=spec["literal_values"],
-        )
+    for field_spec in PARAMETER_FIELD_SPECS:
+        extracted_params[field_spec["field_name"]] = parsed.get(field_spec["response_key"])
 
-    _resolve_oper_num_field(extracted_params, user_input)
+    return extracted_params
 
-    _resolve_scalar_registered_field(extracted_params, user_input, "product_name")
-    _resolve_scalar_registered_field(extracted_params, user_input, "line_name")
-    _resolve_scalar_registered_field(extracted_params, user_input, "mcp_no")
 
+def _apply_domain_specs(extracted_params: RequiredParams, user_input: str) -> RequiredParams:
+    """필드별 하드코딩 함수 대신 도메인 스펙 목록을 돌며 공통 처리한다."""
+
+    for field_spec in PARAMETER_FIELD_SPECS:
+        _normalize_field_value(field_spec, extracted_params, user_input)
     return extracted_params
 
 
@@ -412,10 +344,9 @@ def resolve_required_params(
     """질문에서 조회에 필요한 파라미터를 추출해 반환한다.
 
     처리 순서는 아래와 같다.
-    1. LLM에게 JSON 형태의 초안 파라미터를 요청한다.
-    2. 날짜 같은 기본 규칙을 보정한다.
-    3. 도메인 그룹, 등록 규칙, 특수 제품 규칙으로 값을 보정한다.
-    4. 비어 있는 값은 이전 문맥에서 이어받는다.
+    1. LLM이 질문과 도메인 텍스트를 보고 JSON 초안을 만든다.
+    2. 코드는 도메인 스펙을 읽어 값을 정규화한다.
+    3. 비어 있는 값은 이전 문맥에서 이어받는다.
     """
 
     today = datetime.now().strftime("%Y%m%d")
@@ -427,7 +358,7 @@ Return JSON only.
 Rules:
 - Extract only retrieval-safe fields and grouping hints.
 - Normalize today/yesterday into YYYYMMDD.
-- Use domain knowledge to expand process groups.
+- Use domain knowledge to expand process groups and interpret aliases.
 - If a value is not explicit, return null.
 
 Domain knowledge:
@@ -473,21 +404,6 @@ Return only:
     except Exception:
         parsed = {}
 
-    extracted_params: RequiredParams = {
-        "date": parsed.get("date") or _fallback_date(user_input),
-        "process_name": parsed.get("process"),
-        "oper_num": parsed.get("oper_num"),
-        "pkg_type1": parsed.get("pkg_type1"),
-        "pkg_type2": parsed.get("pkg_type2"),
-        "product_name": parsed.get("product_name"),
-        "line_name": parsed.get("line_name"),
-        "group_by": parsed.get("group_by"),
-        "metrics": [],
-        "mode": parsed.get("mode"),
-        "den": parsed.get("den"),
-        "tech": parsed.get("tech"),
-        "lead": parsed.get("lead"),
-        "mcp_no": parsed.get("mcp_no"),
-    }
-    extracted_params = _apply_domain_overrides(extracted_params, user_input)
+    extracted_params = _build_initial_params(parsed, user_input)
+    extracted_params = _apply_domain_specs(extracted_params, user_input)
     return _inherit_from_context(extracted_params, context)

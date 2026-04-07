@@ -493,6 +493,90 @@ PROCESS_KEYWORD_RULES = [
 ]
 
 
+OPER_NUM_DETECTION_PATTERNS = [
+    r"(?:공정번호|oper_num|oper|operation)\s*[:=]?\s*(\d{4})",
+    r"(\d{4})\s*번?\s*공정",
+]
+
+
+OPER_NUM_VALUES = [spec["OPER_NUM"] for spec in PROCESS_SPECS]
+
+
+PARAMETER_FIELD_SPECS = [
+    {
+        "field_name": "process_name",
+        "response_key": "process",
+        "value_kind": "multi",
+        "groups": PROCESS_GROUPS,
+        "literal_values": INDIVIDUAL_PROCESSES + ["INPUT"],
+        "keyword_rules": PROCESS_KEYWORD_RULES,
+        "allow_text_detection": True,
+    },
+    {
+        "field_name": "oper_num",
+        "response_key": "oper_num",
+        "value_kind": "multi",
+        "candidate_values": OPER_NUM_VALUES,
+        "patterns": OPER_NUM_DETECTION_PATTERNS,
+        "allow_text_detection": True,
+    },
+    {
+        "field_name": "pkg_type1",
+        "response_key": "pkg_type1",
+        "value_kind": "multi",
+        "groups": PKG_TYPE1_GROUPS,
+        "allow_text_detection": True,
+    },
+    {
+        "field_name": "pkg_type2",
+        "response_key": "pkg_type2",
+        "value_kind": "multi",
+        "groups": PKG_TYPE2_GROUPS,
+        "allow_text_detection": True,
+    },
+    {
+        "field_name": "mode",
+        "response_key": "mode",
+        "value_kind": "multi",
+        "groups": MODE_GROUPS,
+        "allow_text_detection": True,
+    },
+    {
+        "field_name": "den",
+        "response_key": "den",
+        "value_kind": "multi",
+        "groups": DEN_GROUPS,
+        "allow_text_detection": True,
+    },
+    {
+        "field_name": "tech",
+        "response_key": "tech",
+        "value_kind": "multi",
+        "groups": TECH_GROUPS,
+        "allow_text_detection": True,
+    },
+    {
+        "field_name": "product_name",
+        "response_key": "product_name",
+        "value_kind": "single",
+        "keyword_rules": SPECIAL_PRODUCT_KEYWORD_RULES,
+        "allow_text_detection": True,
+    },
+    {
+        "field_name": "line_name",
+        "response_key": "line_name",
+        "value_kind": "single",
+        "allow_text_detection": True,
+    },
+    {
+        "field_name": "mcp_no",
+        "response_key": "mcp_no",
+        "value_kind": "single",
+        "allow_text_detection": True,
+    },
+]
+
+
 AUTO_SUFFIXES = {"I", "O", "N", "P", "1", "V"}
 
 

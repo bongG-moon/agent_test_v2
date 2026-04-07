@@ -81,47 +81,39 @@
 
 - `resolve_required_params(...)`
   - 역할: 질문에서 조회용 필터를 추출하는 메인 함수입니다.
-  - 흐름: LLM 초안 생성 -> 날짜 보정 -> 도메인 규칙 보정 -> 문맥 상속
+  - 흐름: LLM 초안 생성 -> 도메인 스펙 기반 공통 정규화 -> 문맥 상속
 
 - `_merge_unique_values(...)`
   - 역할: 단일 값, 리스트, `None` 을 한 번에 받아 고유 리스트로 정리합니다.
   - 의도: 예전의 `_as_list`, `_dedupe`, `_merge_optional_lists` 역할을 하나로 합친 함수입니다.
 
-- `_canonicalize_group_values(...)`
-  - 역할: LLM이 이미 뽑아낸 값이 `DA`, `WB`, `DDR5` 같은 그룹 표현이면 실제 조회값으로 확장합니다.
-  - 용도 차이: 이미 추출된 후보 값을 정리하는 단계입니다.
-
-- `_detect_group_values_from_text(...)`
-  - 역할: 질문 원문에서 공정 그룹, MODE, PKG 같은 그룹형 도메인 값을 직접 찾습니다.
-  - 용도 차이: LLM이 값을 놓쳤을 때 질문 자체를 다시 훑는 보완 단계입니다.
-
-- `_detect_candidate_values(...)`
-  - 역할: 그룹이 아닌 코드형 값을 후보 목록과 정규식으로 찾습니다.
-  - 예: `OPER_NUM` 같은 4자리 코드
-
-- `_find_keyword_rule_targets(...)`
-  - 역할: 도메인 파일에 정의된 키워드 규칙을 읽어서 목표 값을 찾습니다.
+- `_match_keyword_rules(...)`
+  - 역할: 도메인 파일에 정의된 키워드 규칙을 읽어 목표 값을 찾습니다.
   - 예: `HBM` -> `HBM_OR_3DS`, `투입` -> `INPUT`
 
-- `_resolve_group_field(...)`
-  - 역할: 그룹형 필드를 공통 방식으로 처리합니다.
-  - 적용 대상: `process_name`, `mode`, `den`, `tech`, `pkg_type1`, `pkg_type2`
+- `_expand_group_values(...)`
+  - 역할: LLM이 뽑아낸 그룹형 값을 실제 조회값 목록으로 확장합니다.
 
-- `_resolve_oper_num_field(...)`
-  - 역할: `OPER_NUM` 을 별도 하드코딩 함수가 아니라 도메인 값 목록 + 패턴 기반으로 처리합니다.
+- `_detect_group_values_from_text(...)`
+  - 역할: LLM이 값을 놓쳤을 때 질문 원문에서 그룹형 값을 다시 찾습니다.
 
-- `_resolve_scalar_registered_field(...)`
-  - 역할: `product_name`, `line_name`, `mcp_no` 처럼 단일 값 필드를 등록 규칙 기반으로 보정합니다.
+- `_detect_candidate_values_from_text(...)`
+  - 역할: `OPER_NUM` 같은 코드형 값을 후보 목록과 정규식으로 찾습니다.
 
-- `_resolve_keyword_based_scalar_field(...)`
-  - 역할: 특수 제품군처럼 키워드 규칙으로 바로 정규화해야 하는 단일 값 필드를 처리합니다.
+- `_normalize_single_value(...)`
+  - 역할: 단일 값 필드를 공통 방식으로 정규화합니다.
 
-- `_resolve_keyword_based_process_field(...)`
-  - 역할: `투입`, `input`, `인풋` 같은 공정 키워드를 process 값으로 바꿉니다.
+- `_normalize_multi_value(...)`
+  - 역할: 리스트형 필드를 공통 방식으로 정규화합니다.
 
-- `_apply_domain_overrides(...)`
-  - 역할: 제조 도메인 규칙을 실제 파라미터에 반영합니다.
-  - 예: 그룹 규칙, 키워드 규칙, 등록 규칙을 한 번에 적용합니다.
+- `_normalize_field_value(...)`
+  - 역할: 도메인 스펙 하나를 기준으로 필드 값을 처리합니다.
+
+- `_build_initial_params(...)`
+  - 역할: LLM JSON 응답을 내부 파라미터 구조로 옮깁니다.
+
+- `_apply_domain_specs(...)`
+  - 역할: 도메인 파일의 `PARAMETER_FIELD_SPECS` 를 돌면서 모든 필드를 공통 방식으로 처리합니다.
 
 - `_inherit_from_context(...)`
   - 역할: 이번 질문에 빠진 조건을 이전 문맥에서 이어받습니다.
