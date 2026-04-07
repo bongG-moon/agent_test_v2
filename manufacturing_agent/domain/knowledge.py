@@ -605,6 +605,63 @@ PARAMETER_FIELD_SPECS = [
 ]
 
 
+# query mode 판단에서 사용하는 표현 신호 모음입니다.
+# 서비스 코드가 직접 키워드를 하드코딩하지 않고 이 스펙을 읽어 사용합니다.
+QUERY_MODE_SIGNAL_SPECS = {
+    "explicit_date_reference": {
+        "keywords": ["오늘", "어제", "today", "yesterday"],
+        "patterns": [r"\b20\d{6}\b"],
+        "description": "새 날짜를 직접 언급한 경우",
+    },
+    "grouping_expression": {
+        "keywords": ["group by", "by", "기준", "별"],
+        "patterns": [r"([\w/\-가-힣]+)\s*(by|기준|별)"],
+        "description": "그룹화 또는 breakdown 의도를 드러내는 표현",
+    },
+    "retrieval_request": {
+        "keywords": [
+            "생산",
+            "목표",
+            "불량",
+            "설비",
+            "가동률",
+            "wip",
+            "수율",
+            "hold",
+            "스크랩",
+            "레시피",
+            "lot",
+            "조회",
+        ],
+        "patterns": [],
+        "description": "새 raw dataset 조회 쪽으로 기울게 하는 표현",
+    },
+    "followup_filter_intent": {
+        "keywords": [
+            "조건",
+            "필터",
+            "공정",
+            "공정번호",
+            "oper",
+            "pkg",
+            "라인",
+            "mode",
+            "den",
+            "tech",
+            "lead",
+            "mcp",
+        ],
+        "patterns": [],
+        "description": "현재 결과에 새 필터를 적용하려는 의도를 드러내는 표현",
+    },
+    "fresh_retrieval_hint": {
+        "keywords": ["조회", "데이터", "현황", "새로"],
+        "patterns": [],
+        "description": "현재 테이블 재가공보다 새 조회를 더 강하게 시사하는 표현",
+    },
+}
+
+
 AUTO_SUFFIXES = {"I", "O", "N", "P", "1", "V"}
 
 

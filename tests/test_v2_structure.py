@@ -8,7 +8,11 @@ from manufacturing_agent.data.retrieval import get_production_data
 from manufacturing_agent.domain import registry
 from manufacturing_agent.services import parameter_service, request_context, response_service, retrieval_planner
 from manufacturing_agent.services.merge_service import build_analysis_base_table
-from manufacturing_agent.services.query_mode import choose_query_mode
+from manufacturing_agent.services.query_mode import (
+    choose_query_mode,
+    has_explicit_date_reference,
+    mentions_grouping_expression,
+)
 from manufacturing_agent.services.runtime_service import ensure_filtered_result_rows
 from manufacturing_agent.shared.text_sanitizer import sanitize_markdown_text
 
@@ -141,6 +145,11 @@ def test_choose_query_mode_keeps_followup_for_same_scope_transform():
     )
 
     assert query_mode == "followup_transform"
+
+
+def test_query_mode_signal_specs_drive_date_and_grouping_detection():
+    assert has_explicit_date_reference("오늘 생산량 알려줘") is True
+    assert mentions_grouping_expression("MODE별로 다시 보여줘") is True
 
 
 def test_langflow_extract_params_component_returns_plain_dict(monkeypatch):

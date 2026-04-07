@@ -126,6 +126,7 @@
   - `CODE_PARAMETER_FIELD_SPECS`
   - `SINGLE_VALUE_PARAMETER_FIELD_SPECS`
 - 최종적으로 [parameter_service.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/services/parameter_service.py)는 `PARAMETER_FIELD_SPECS` 하나를 읽어 공통 처리합니다.
+- query mode 표현 감지 역시 `QUERY_MODE_SIGNAL_SPECS` 로 선언형 관리합니다.
 
 ### [manufacturing_agent/domain/registry.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/domain/registry.py)
 - 사용자 정의 도메인 규칙을 저장하고 조회합니다.

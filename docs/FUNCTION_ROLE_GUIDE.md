@@ -125,6 +125,9 @@
 
 ### [manufacturing_agent/services/query_mode.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/services/query_mode.py)
 
+- `_matches_query_mode_signal(...)`
+  - 역할: 도메인 파일의 `QUERY_MODE_SIGNAL_SPECS` 를 읽어 날짜, 그룹화, 새 조회 신호를 감지합니다.
+
 - `has_explicit_date_reference(user_input)`
   - 역할: 날짜를 새로 지정했는지 확인합니다.
 
@@ -277,6 +280,10 @@
 - `PARAMETER_FIELD_SPECS`
   - 역할: 파라미터 추출 규칙을 “그룹형 / 코드형 / 단일 값” 구조로 선언적으로 정리한 스펙입니다.
   - 사용처: [parameter_service.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/services/parameter_service.py)
+
+- `QUERY_MODE_SIGNAL_SPECS`
+  - 역할: query mode 판단에서 쓰는 날짜, 그룹화, 새 조회 신호를 선언형으로 정리한 스펙입니다.
+  - 사용처: [query_mode.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/services/query_mode.py)
 
 - `build_domain_knowledge_prompt()`
   - 역할: 도메인 지식을 LLM 프롬프트용 텍스트로 변환합니다.
