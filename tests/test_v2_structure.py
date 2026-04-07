@@ -69,6 +69,32 @@ def test_resolve_required_params_detects_process_and_mode_without_real_llm(monke
     assert "D/A1" in result["process_name"]
 
 
+def test_resolve_required_params_detects_oper_num_with_domain_based_detector(monkeypatch):
+    _stub_llms(monkeypatch)
+
+    result = parameter_service.resolve_required_params(
+        user_input="oper_num 2030 production",
+        chat_history_text="",
+        current_data_columns=[],
+        context={},
+    )
+
+    assert result["oper_num"] == ["2030"]
+
+
+def test_resolve_required_params_detects_pkg_value_without_field_specific_helper(monkeypatch):
+    _stub_llms(monkeypatch)
+
+    result = parameter_service.resolve_required_params(
+        user_input="today FCBGA production",
+        chat_history_text="",
+        current_data_columns=[],
+        context={},
+    )
+
+    assert result["pkg_type1"] == ["FCBGA"]
+
+
 def test_choose_query_mode_keeps_followup_for_same_scope_transform():
     current_data = {
         "success": True,

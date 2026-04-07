@@ -15,6 +15,7 @@ from ..domain.knowledge import (
     PKG_TYPE1_GROUPS,
     PKG_TYPE2_GROUPS,
     PROCESS_GROUPS,
+    PROCESS_SPECS,
     TECH_GROUPS,
     build_domain_knowledge_prompt,
 )
@@ -27,8 +28,30 @@ from ..shared.config import SYSTEM_PROMPT, get_llm
 from ..shared.filter_utils import normalize_text
 
 
+OPER_NUM_PATTERNS = [
+    r"(?:공정번호|oper_num|oper|operation)\s*[:=]?\s*(\d{4})",
+    r"(\d{4})\s*번?\s*공정",
+]
+
+OPER_NUM_VALUES = [spec["OPER_NUM"] for spec in PROCESS_SPECS]
+
+
+GROUP_FIELD_SPECS = [
+    {
+        "field_name": "process_name",
+        "groups": PROCESS_GROUPS,
+        "literal_values": INDIVIDUAL_PROCESSES + ["INPUT"],
+    },
+    {"field_name": "mode", "groups": MODE_GROUPS, "literal_values": None},
+    {"field_name": "den", "groups": DEN_GROUPS, "literal_values": None},
+    {"field_name": "tech", "groups": TECH_GROUPS, "literal_values": None},
+    {"field_name": "pkg_type1", "groups": PKG_TYPE1_GROUPS, "literal_values": None},
+    {"field_name": "pkg_type2", "groups": PKG_TYPE2_GROUPS, "literal_values": None},
+]
+
+
 def _get_llm_for_task(task: str):
-    """테스트 환경과 실환경 모두에서 안전하게 LLM 객체를 가져온다."""
+    """환경 차이를 흡수하면서 LLM 객체를 안전하게 가져온다."""
 
     try:
         return get_llm(task=task)
@@ -37,7 +60,7 @@ def _get_llm_for_task(task: str):
 
 
 def _extract_text_from_response(content: Any) -> str:
-    """LLM 응답 내용을 문자열 하나로 평탄화한다."""
+    """LLM 응답을 문자열 하나로 정리한다."""
 
     if isinstance(content, str):
         return content
@@ -53,144 +76,48 @@ def _extract_text_from_response(content: Any) -> str:
 
 
 def _parse_json_block(text: str) -> Dict[str, Any]:
-    """코드블록이 섞인 응답에서도 JSON 객체만 안전하게 추출한다."""
+    """코드 블록이 섞여 있어도 JSON 객체만 추출한다."""
 
     cleaned = str(text or "").strip()
     if "```json" in cleaned:
         cleaned = cleaned.split("```json", 1)[1].split("```", 1)[0]
     elif "```" in cleaned:
         cleaned = cleaned.split("```", 1)[1].split("```", 1)[0]
+
     start = cleaned.find("{")
     end = cleaned.rfind("}")
     if start == -1 or end == -1 or end <= start:
         return {}
+
     try:
         return json.loads(cleaned[start : end + 1])
     except Exception:
         return {}
 
 
-def _inherit_from_context(extracted_params: RequiredParams, context: Dict[str, Any] | None) -> RequiredParams:
-    """이번 질문에서 빠진 조건을 직전 대화 컨텍스트에서 상속한다."""
+def _merge_unique_values(*values: Any) -> List[str] | None:
+    """단일 값, 리스트, None 을 모두 받아 순서를 유지한 고유 리스트로 합친다."""
 
-    if not isinstance(context, dict):
-        return extracted_params
-
-    if not extracted_params.get("date") and context.get("date"):
-        extracted_params["date"] = context["date"]
-        extracted_params["date_inherited"] = True
-
-    for field in [
-        "process_name",
-        "oper_num",
-        "pkg_type1",
-        "pkg_type2",
-        "product_name",
-        "line_name",
-        "mode",
-        "den",
-        "tech",
-        "lead",
-        "mcp_no",
-    ]:
-        if extracted_params.get(field):
-            continue
-        if not context.get(field):
-            continue
-        extracted_params[field] = context[field]
-        inherited_key = (
-            "process_inherited"
-            if field == "process_name"
-            else "oper_num_inherited"
-            if field == "oper_num"
-            else "pkg_type1_inherited"
-            if field == "pkg_type1"
-            else "pkg_type2_inherited"
-            if field == "pkg_type2"
-            else "product_inherited"
-            if field == "product_name"
-            else "line_inherited"
-            if field == "line_name"
-            else f"{field}_inherited"
-        )
-        extracted_params[inherited_key] = True
-
-    return extracted_params
-
-
-def _fallback_date(text: str) -> str | None:
-    """LLM이 날짜를 못 뽑았을 때 `오늘/어제` 정도는 규칙으로 보완한다."""
-
-    lower = str(text or "").lower()
-    now = datetime.now()
-    if "오늘" in lower or "today" in lower:
-        return now.strftime("%Y%m%d")
-    if "어제" in lower or "yesterday" in lower:
-        return (now - timedelta(days=1)).strftime("%Y%m%d")
-    return None
-
-
-def _detect_oper_num(text: str) -> List[str] | None:
-    """질문에서 공정번호 4자리를 직접 찾는다."""
-
-    patterns = [
-        r"(?:공정번호|oper_num|oper|operation)\s*[:=]?\s*(\d{4})",
-        r"(\d{4})\s*번?\s*공정",
-    ]
-    values: List[str] = []
-    for pattern in patterns:
-        for match in re.findall(pattern, str(text or ""), flags=re.IGNORECASE):
-            if match not in values:
-                values.append(match)
-    return values or None
-
-
-def _detect_pkg_values(text: str, allowed_values: List[str]) -> List[str] | None:
-    """질문 안에 특정 PKG 값이 들어 있는지 단순 탐지한다."""
-
-    normalized = normalize_text(text)
-    detected: List[str] = []
-    for value in allowed_values:
-        if normalize_text(value) in normalized and value not in detected:
-            detected.append(value)
-    return detected or None
-
-
-def _as_list(value: Any) -> List[str]:
-    """값을 항상 문자열 리스트 형태로 맞춘다."""
-
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    text = str(value).strip()
-    return [text] if text else []
-
-
-def _dedupe(values: List[str]) -> List[str]:
-    """순서를 유지하면서 중복만 제거한다."""
-
-    ordered: List[str] = []
+    merged: List[str] = []
     for value in values:
-        if value and value not in ordered:
-            ordered.append(value)
-    return ordered
-
-
-def _merge_optional_lists(current_value: Any, extra_value: Any) -> List[str] | None:
-    """기존 값과 추가 탐지 값을 합친 뒤 중복을 제거한다."""
-
-    merged = _dedupe([*_as_list(current_value), *_as_list(extra_value)])
+        if value is None:
+            continue
+        candidates = value if isinstance(value, list) else [value]
+        for candidate in candidates:
+            cleaned = str(candidate).strip()
+            if cleaned and cleaned not in merged:
+                merged.append(cleaned)
     return merged or None
 
 
 def _contains_alias(text: str, alias: str) -> bool:
-    """별칭이 독립된 토큰처럼 등장했는지 확인한다."""
+    """별칭이 다른 단어에 붙어 있는 오탐을 줄이기 위해 토큰 경계를 확인한다."""
 
     normalized_text = normalize_text(text)
     normalized_alias = normalize_text(alias)
     if not normalized_text or not normalized_alias:
         return False
+
     pattern = rf"(?<![a-z0-9]){re.escape(normalized_alias)}(?![a-z0-9])"
     return bool(re.search(pattern, normalized_text, flags=re.IGNORECASE))
 
@@ -200,17 +127,12 @@ def _canonicalize_group_values(
     groups: Dict[str, Dict[str, Any]],
     literal_values: List[str] | None = None,
 ) -> List[str] | None:
-    """그룹 별칭을 실제 값 목록으로 확장한다.
-
-    예:
-    - `DA` -> `D/A1`, `D/A2`, ...
-    - `DDR 계열` -> `DDR4`, `DDR5`
-    """
+    """LLM이 뽑은 값이 그룹 이름이면 실제 값 목록으로 확장한다."""
 
     canonical_values: List[str] = []
-
-    for raw_value in _as_list(raw_values):
+    for raw_value in _merge_unique_values(raw_values) or []:
         matched = False
+
         for group in groups.values():
             aliases = [*group.get("synonyms", []), *group.get("actual_values", [])]
             if any(normalize_text(raw_value) == normalize_text(alias) for alias in aliases):
@@ -230,8 +152,7 @@ def _canonicalize_group_values(
         if not matched:
             canonical_values.append(raw_value)
 
-    canonical_values = _dedupe(canonical_values)
-    return canonical_values or None
+    return _merge_unique_values(canonical_values)
 
 
 def _detect_group_values_from_text(
@@ -239,7 +160,7 @@ def _detect_group_values_from_text(
     groups: Dict[str, Dict[str, Any]],
     literal_values: List[str] | None = None,
 ) -> List[str] | None:
-    """질문 전체를 보고 그룹/리터럴 값 후보를 직접 탐지한다."""
+    """질문 전체를 보고 그룹 별칭이나 실제 값을 직접 탐지한다."""
 
     detected_values: List[str] = []
 
@@ -252,12 +173,35 @@ def _detect_group_values_from_text(
         if _contains_alias(text, literal_value):
             detected_values.append(literal_value)
 
-    detected_values = _dedupe(detected_values)
-    return detected_values or None
+    return _merge_unique_values(detected_values)
+
+
+def _detect_candidate_values(
+    text: str,
+    candidates: List[str] | None = None,
+    patterns: List[str] | None = None,
+) -> List[str] | None:
+    """그룹이 아닌 코드형 값은 후보 목록과 정규식 패턴을 함께 사용해 탐지한다."""
+
+    detected_values: List[str] = []
+
+    for candidate in candidates or []:
+        if _contains_alias(text, candidate):
+            detected_values.append(candidate)
+
+    for pattern in patterns or []:
+        matches = re.findall(pattern, str(text or ""), flags=re.IGNORECASE)
+        for match in matches:
+            value = match if isinstance(match, str) else match[0]
+            cleaned = str(value).strip()
+            if cleaned:
+                detected_values.append(cleaned)
+
+    return _merge_unique_values(detected_values)
 
 
 def _normalize_special_product_name(value: Any) -> str | None:
-    """HBM/3DS, AUTO 같은 의미형 제품 질의를 내부 코드로 바꾼다."""
+    """HBM/3DS, Auto 같은 특수 제품 표현을 내부 코드로 바꾼다."""
 
     normalized = normalize_text(value)
     if not normalized:
@@ -281,8 +225,132 @@ def _normalize_special_product_name(value: Any) -> str | None:
     return None
 
 
+def _resolve_group_field(
+    extracted_params: RequiredParams,
+    user_input: str,
+    field_name: str,
+    groups: Dict[str, Dict[str, Any]],
+    literal_values: List[str] | None = None,
+) -> None:
+    """그룹형 필드(process, mode, pkg 등)를 공통 규칙으로 보정한다."""
+
+    current_value = _canonicalize_group_values(extracted_params.get(field_name), groups, literal_values=literal_values)
+    current_value = _merge_unique_values(
+        current_value,
+        expand_registered_values(field_name, current_value),
+    )
+
+    if not current_value:
+        current_value = _detect_group_values_from_text(user_input, groups, literal_values=literal_values)
+
+    extracted_params[field_name] = _merge_unique_values(
+        current_value,
+        detect_registered_values(field_name, user_input),
+    )
+
+
+def _resolve_oper_num_field(extracted_params: RequiredParams, user_input: str) -> None:
+    """OPER_NUM 은 도메인 값 목록과 패턴을 함께 사용해 탐지한다."""
+
+    current_value = _merge_unique_values(
+        extracted_params.get("oper_num"),
+        expand_registered_values("oper_num", extracted_params.get("oper_num")),
+    )
+
+    if not current_value:
+        current_value = _detect_candidate_values(
+            user_input,
+            candidates=OPER_NUM_VALUES,
+            patterns=OPER_NUM_PATTERNS,
+        )
+
+    extracted_params["oper_num"] = _merge_unique_values(
+        current_value,
+        detect_registered_values("oper_num", user_input),
+    )
+
+
+def _resolve_scalar_registered_field(
+    extracted_params: RequiredParams,
+    user_input: str,
+    field_name: str,
+) -> None:
+    """단일 값 필드는 등록 규칙 기반으로 하나의 대표 값을 고른다."""
+
+    expanded_value = expand_registered_values(field_name, extracted_params.get(field_name))
+    if expanded_value:
+        extracted_params[field_name] = expanded_value[0]
+        return
+
+    if extracted_params.get(field_name):
+        return
+
+    detected_value = detect_registered_values(field_name, user_input)
+    if detected_value:
+        extracted_params[field_name] = detected_value[0]
+
+
+def _inherit_from_context(extracted_params: RequiredParams, context: Dict[str, Any] | None) -> RequiredParams:
+    """이번 질문에서 비어 있는 조건은 직전 문맥에서 이어받는다."""
+
+    if not isinstance(context, dict):
+        return extracted_params
+
+    if not extracted_params.get("date") and context.get("date"):
+        extracted_params["date"] = context["date"]
+        extracted_params["date_inherited"] = True
+
+    for field in [
+        "process_name",
+        "oper_num",
+        "pkg_type1",
+        "pkg_type2",
+        "product_name",
+        "line_name",
+        "mode",
+        "den",
+        "tech",
+        "lead",
+        "mcp_no",
+    ]:
+        if extracted_params.get(field) or not context.get(field):
+            continue
+
+        extracted_params[field] = context[field]
+        inherited_key = (
+            "process_inherited"
+            if field == "process_name"
+            else "oper_num_inherited"
+            if field == "oper_num"
+            else "pkg_type1_inherited"
+            if field == "pkg_type1"
+            else "pkg_type2_inherited"
+            if field == "pkg_type2"
+            else "product_inherited"
+            if field == "product_name"
+            else "line_inherited"
+            if field == "line_name"
+            else f"{field}_inherited"
+        )
+        extracted_params[inherited_key] = True
+
+    return extracted_params
+
+
+def _fallback_date(text: str) -> str | None:
+    """LLM이 날짜를 놓쳤을 때 오늘, 어제 같은 기본 표현을 보정한다."""
+
+    lower = str(text or "").lower()
+    now = datetime.now()
+    if "오늘" in lower or "today" in lower:
+        return now.strftime("%Y%m%d")
+    if "어제" in lower or "yesterday" in lower:
+        return (now - timedelta(days=1)).strftime("%Y%m%d")
+    return None
+
+
 def _apply_domain_overrides(extracted_params: RequiredParams, user_input: str) -> RequiredParams:
-    """도메인 규칙과 사용자 정의 레지스트리를 이용해 파라미터를 보정한다."""
+    """LLM 초안에 도메인 규칙과 사용자 정의 규칙을 덧입혀 최종 필터로 정리한다."""
 
     normalized = normalize_text(user_input)
     input_requested = any(token in normalized for token in ["투입", "input", "인풋"])
@@ -301,134 +369,24 @@ def _apply_domain_overrides(extracted_params: RequiredParams, user_input: str) -
     if extracted_params.get("process_name") == ["INPUT"] and not input_requested:
         extracted_params["process_name"] = None
 
-    extracted_params["process_name"] = _canonicalize_group_values(
-        extracted_params.get("process_name"),
-        PROCESS_GROUPS,
-        literal_values=INDIVIDUAL_PROCESSES + ["INPUT"],
-    )
-    extracted_params["process_name"] = _merge_optional_lists(
-        extracted_params.get("process_name"),
-        expand_registered_values("process_name", extracted_params.get("process_name")),
-    )
-    if not extracted_params.get("process_name"):
-        detected_processes = _detect_group_values_from_text(
+    for spec in GROUP_FIELD_SPECS:
+        _resolve_group_field(
+            extracted_params,
             user_input,
-            PROCESS_GROUPS,
-            literal_values=INDIVIDUAL_PROCESSES + ["INPUT"],
+            field_name=spec["field_name"],
+            groups=spec["groups"],
+            literal_values=spec["literal_values"],
         )
-        if detected_processes:
-            extracted_params["process_name"] = detected_processes
-    extracted_params["process_name"] = _merge_optional_lists(
-        extracted_params.get("process_name"),
-        detect_registered_values("process_name", user_input),
-    )
 
-    if not extracted_params.get("oper_num"):
-        detected_oper_num = _detect_oper_num(user_input)
-        if detected_oper_num:
-            extracted_params["oper_num"] = detected_oper_num
-    extracted_params["oper_num"] = _merge_optional_lists(
-        extracted_params.get("oper_num"),
-        detect_registered_values("oper_num", user_input),
-    )
-
-    extracted_params["mode"] = _canonicalize_group_values(extracted_params.get("mode"), MODE_GROUPS)
-    extracted_params["mode"] = _merge_optional_lists(
-        extracted_params.get("mode"),
-        expand_registered_values("mode", extracted_params.get("mode")),
-    )
-    if not extracted_params.get("mode"):
-        detected_mode = _detect_group_values_from_text(user_input, MODE_GROUPS)
-        if detected_mode:
-            extracted_params["mode"] = detected_mode
-    extracted_params["mode"] = _merge_optional_lists(
-        extracted_params.get("mode"),
-        detect_registered_values("mode", user_input),
-    )
-
-    extracted_params["den"] = _canonicalize_group_values(extracted_params.get("den"), DEN_GROUPS)
-    extracted_params["den"] = _merge_optional_lists(
-        extracted_params.get("den"),
-        expand_registered_values("den", extracted_params.get("den")),
-    )
-    if not extracted_params.get("den"):
-        detected_den = _detect_group_values_from_text(user_input, DEN_GROUPS)
-        if detected_den:
-            extracted_params["den"] = detected_den
-    extracted_params["den"] = _merge_optional_lists(
-        extracted_params.get("den"),
-        detect_registered_values("den", user_input),
-    )
-
-    extracted_params["tech"] = _canonicalize_group_values(extracted_params.get("tech"), TECH_GROUPS)
-    extracted_params["tech"] = _merge_optional_lists(
-        extracted_params.get("tech"),
-        expand_registered_values("tech", extracted_params.get("tech")),
-    )
-    if not extracted_params.get("tech"):
-        detected_tech = _detect_group_values_from_text(user_input, TECH_GROUPS)
-        if detected_tech:
-            extracted_params["tech"] = detected_tech
-    extracted_params["tech"] = _merge_optional_lists(
-        extracted_params.get("tech"),
-        detect_registered_values("tech", user_input),
-    )
-
-    extracted_params["pkg_type1"] = _canonicalize_group_values(extracted_params.get("pkg_type1"), PKG_TYPE1_GROUPS)
-    extracted_params["pkg_type1"] = _merge_optional_lists(
-        extracted_params.get("pkg_type1"),
-        expand_registered_values("pkg_type1", extracted_params.get("pkg_type1")),
-    )
-    if not extracted_params.get("pkg_type1"):
-        detected_pkg_type1 = _detect_pkg_values(user_input, ["FCBGA", "LFBGA"])
-        if detected_pkg_type1:
-            extracted_params["pkg_type1"] = detected_pkg_type1
-    extracted_params["pkg_type1"] = _merge_optional_lists(
-        extracted_params.get("pkg_type1"),
-        detect_registered_values("pkg_type1", user_input),
-    )
-
-    extracted_params["pkg_type2"] = _canonicalize_group_values(extracted_params.get("pkg_type2"), PKG_TYPE2_GROUPS)
-    extracted_params["pkg_type2"] = _merge_optional_lists(
-        extracted_params.get("pkg_type2"),
-        expand_registered_values("pkg_type2", extracted_params.get("pkg_type2")),
-    )
-    if not extracted_params.get("pkg_type2"):
-        detected_pkg_type2 = _detect_pkg_values(user_input, ["ODP", "16DP", "SDP"])
-        if detected_pkg_type2:
-            extracted_params["pkg_type2"] = detected_pkg_type2
-    extracted_params["pkg_type2"] = _merge_optional_lists(
-        extracted_params.get("pkg_type2"),
-        detect_registered_values("pkg_type2", user_input),
-    )
+    _resolve_oper_num_field(extracted_params, user_input)
 
     extracted_params["product_name"] = (
         _normalize_special_product_name(extracted_params.get("product_name"))
         or extracted_params.get("product_name")
     )
-    expanded_product = expand_registered_values("product_name", extracted_params.get("product_name"))
-    if expanded_product:
-        extracted_params["product_name"] = expanded_product[0]
-    if not extracted_params.get("product_name"):
-        detected_product = detect_registered_values("product_name", user_input)
-        if detected_product:
-            extracted_params["product_name"] = detected_product[0]
-
-    expanded_line = expand_registered_values("line_name", extracted_params.get("line_name"))
-    if expanded_line:
-        extracted_params["line_name"] = expanded_line[0]
-    if not extracted_params.get("line_name"):
-        detected_line = detect_registered_values("line_name", user_input)
-        if detected_line:
-            extracted_params["line_name"] = detected_line[0]
-
-    expanded_mcp = expand_registered_values("mcp_no", extracted_params.get("mcp_no"))
-    if expanded_mcp:
-        extracted_params["mcp_no"] = expanded_mcp[0]
-    if not extracted_params.get("mcp_no"):
-        detected_mcp = detect_registered_values("mcp_no", user_input)
-        if detected_mcp:
-            extracted_params["mcp_no"] = detected_mcp[0]
+    _resolve_scalar_registered_field(extracted_params, user_input, "product_name")
+    _resolve_scalar_registered_field(extracted_params, user_input, "line_name")
+    _resolve_scalar_registered_field(extracted_params, user_input, "mcp_no")
 
     return extracted_params
 
@@ -439,13 +397,13 @@ def resolve_required_params(
     current_data_columns: List[str],
     context: Dict[str, Any] | None = None,
 ) -> RequiredParams:
-    """질문에서 조회용 파라미터를 추출해 반환한다.
+    """질문에서 조회에 필요한 파라미터를 추출해 반환한다.
 
-    흐름은 다음과 같다.
-    1. LLM에게 JSON 형태의 초안 파라미터를 요청
-    2. 규칙 기반 날짜/공정번호 보정
-    3. 도메인 그룹 확장과 사용자 정의 레지스트리 적용
-    4. 직전 대화 컨텍스트 상속
+    처리 순서는 아래와 같다.
+    1. LLM에게 JSON 형태의 초안 파라미터를 요청한다.
+    2. 날짜 같은 기본 규칙을 보정한다.
+    3. 도메인 그룹, 등록 규칙, 특수 제품 규칙으로 값을 보정한다.
+    4. 비어 있는 값은 이전 문맥에서 이어받는다.
     """
 
     today = datetime.now().strftime("%Y%m%d")

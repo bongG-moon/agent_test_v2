@@ -1,293 +1,250 @@
 # Function And Element Guide
 
-이 문서는 주요 함수와 요소가 어떤 목적을 위해 만들어졌는지 설명합니다.
+이 문서는 주요 함수와 요소가 왜 만들어졌는지, 어디에서 사용되는지 빠르게 이해하기 위한 안내서입니다.
 
 ## 1. 실행 진입 함수
 
 ### [manufacturing_agent/agent.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/agent.py)
 
 - `run_agent(user_input, chat_history=None, context=None, current_data=None)`
-  - 역할: LangGraph 기반 제조 에이전트 전체 실행 시작점
+  - 역할: 제조 에이전트 전체 실행의 시작점입니다.
+  - 사용처: [app.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/app.py), 테스트, 외부 호출부
 
 - `extract_params_component(input_state)`
-  - 역할: Langflow나 외부 노드 시스템에서 파라미터 추출만 따로 쓰기 위한 래퍼
+  - 역할: Langflow 스타일 입력에서 파라미터 추출만 독립 실행할 수 있게 만든 래퍼입니다.
 
 - `decide_query_mode_component(input_state)`
-  - 역할: 현재 질문이 retrieval인지 follow-up인지 따로 판단하기 위한 래퍼
+  - 역할: 새 데이터 조회인지, 현재 데이터 후속 분석인지 구분합니다.
 
 - `plan_retrieval_component(input_state)`
-  - 역할: 필요한 dataset과 retrieval job을 만드는 래퍼
+  - 역할: 어떤 데이터셋을 불러와야 할지 계획합니다.
 
 - `retrieval_component(input_state)`
-  - 역할: 일반 retrieval 실행 래퍼
+  - 역할: 단일 데이터셋 조회를 실행합니다.
 
 - `multi_retrieval_component(input_state)`
-  - 역할: 여러 retrieval job을 묶어 실행하는 래퍼
+  - 역할: 여러 데이터셋 조회를 묶어서 실행합니다.
 
 - `followup_analysis_component(input_state)`
-  - 역할: 현재 데이터 기반 후속 분석 래퍼
+  - 역할: 현재 화면의 테이블을 다시 가공하는 후속 분석을 실행합니다.
 
 ## 2. 그래프 구성 요소
 
 ### [manufacturing_agent/graph/state.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/graph/state.py)
 
 - `QueryMode`
-  - 역할: 현재 질문이 `retrieval`인지 `followup_transform`인지 구분
+  - 역할: `retrieval`, `followup_transform` 같은 실행 유형을 구분합니다.
 
 - `AgentGraphState`
-  - 역할: 그래프 전체에서 공유하는 상태 구조
+  - 역할: 그래프 전체에서 공유하는 상태 구조입니다.
 
 ### [manufacturing_agent/graph/builder.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/graph/builder.py)
 
 - `route_after_resolve(state)`
-  - 역할: 질문 해석 이후 follow-up으로 갈지, retrieval 계획으로 갈지 결정
+  - 역할: 요청 해석 후 다음 노드를 결정합니다.
 
 - `route_after_retrieval_plan(state)`
-  - 역할: 계획 결과를 보고 finish, single retrieval, multi retrieval 중 어디로 갈지 결정
+  - 역할: 조회 계획 결과를 보고 종료, 단일 조회, 다중 조회 중 하나로 분기합니다.
 
 - `get_agent_graph()`
-  - 역할: LangGraph를 조립하고 compile된 graph를 반환
+  - 역할: LangGraph를 조립하고 최종 그래프를 반환합니다.
 
 ## 3. 그래프 노드 함수
 
 ### [manufacturing_agent/graph/nodes/resolve_request.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/graph/nodes/resolve_request.py)
 - `resolve_request_node(state)`
-  - 역할: 파라미터를 추출하고 query mode를 결정
+  - 역할: 파라미터를 추출하고 query mode를 정합니다.
 
 ### [manufacturing_agent/graph/nodes/plan_retrieval.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/graph/nodes/plan_retrieval.py)
 - `plan_retrieval_node(state)`
-  - 역할: dataset 계획과 retrieval job 생성
+  - 역할: 필요한 데이터셋과 조회 작업 목록을 만듭니다.
 
 ### [manufacturing_agent/graph/nodes/retrieve_single.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/graph/nodes/retrieve_single.py)
 - `single_retrieval_node(state)`
-  - 역할: 단일 dataset 조회 실행
+  - 역할: 단일 데이터셋 조회와 후처리를 실행합니다.
 
 ### [manufacturing_agent/graph/nodes/retrieve_multi.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/graph/nodes/retrieve_multi.py)
 - `multi_retrieval_node(state)`
-  - 역할: 다중 dataset 조회 실행
+  - 역할: 다중 데이터셋 조회, 병합, 후처리를 실행합니다.
 
 ### [manufacturing_agent/graph/nodes/followup_analysis.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/graph/nodes/followup_analysis.py)
 - `followup_analysis_node(state)`
-  - 역할: 현재 표 기반 후속 분석 수행
+  - 역할: 현재 데이터 기반의 후속 분석을 실행합니다.
 
 ### [manufacturing_agent/graph/nodes/finish.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/graph/nodes/finish.py)
 - `finish_node(state)`
-  - 역할: 최종 결과 정리
+  - 역할: 최종 결과를 정리해 반환합니다.
 
 ## 4. 파라미터 추출 함수
 
 ### [manufacturing_agent/services/parameter_service.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/services/parameter_service.py)
 
 - `resolve_required_params(...)`
-  - 역할: 질문에서 조회 필터를 추출하는 메인 함수
+  - 역할: 질문에서 조회용 필터를 추출하는 메인 함수입니다.
+  - 흐름: LLM 초안 생성 -> 날짜 보정 -> 도메인 규칙 보정 -> 문맥 상속
 
-- `_inherit_from_context(...)`
-  - 역할: 이전 문맥 필터를 이어받음
-
-- `_fallback_date(text)`
-  - 역할: today, yesterday 같은 표현을 날짜로 보정
-
-- `_detect_oper_num(text)`
-  - 역할: `OPER_NUM` 패턴 감지
+- `_merge_unique_values(...)`
+  - 역할: 단일 값, 리스트, `None` 을 한 번에 받아 고유 리스트로 정리합니다.
+  - 의도: 예전의 `_as_list`, `_dedupe`, `_merge_optional_lists` 역할을 하나로 합친 함수입니다.
 
 - `_canonicalize_group_values(...)`
-  - 역할: `DA`, `WB` 같은 그룹 표현을 실제 공정 목록으로 확장
+  - 역할: `DA`, `WB`, `DDR5` 같은 그룹형 값을 실제 조회값으로 확장합니다.
+
+- `_detect_group_values_from_text(...)`
+  - 역할: 질문에서 공정 그룹, MODE, PKG 같은 그룹형 도메인 값을 직접 찾습니다.
+
+- `_detect_candidate_values(...)`
+  - 역할: 그룹이 아닌 코드형 값을 후보 목록과 정규식으로 찾습니다.
+  - 예: `OPER_NUM` 같은 4자리 코드
+
+- `_resolve_group_field(...)`
+  - 역할: 그룹형 필드를 공통 방식으로 처리합니다.
+  - 적용 대상: `process_name`, `mode`, `den`, `tech`, `pkg_type1`, `pkg_type2`
+
+- `_resolve_oper_num_field(...)`
+  - 역할: `OPER_NUM` 을 별도 하드코딩 함수가 아니라 도메인 값 목록 + 패턴 기반으로 처리합니다.
+
+- `_resolve_scalar_registered_field(...)`
+  - 역할: `product_name`, `line_name`, `mcp_no` 처럼 단일 값 필드를 등록 규칙 기반으로 보정합니다.
 
 - `_apply_domain_overrides(...)`
-  - 역할: 제조 도메인 규칙으로 값을 보정
+  - 역할: 제조 도메인 규칙을 실제 파라미터에 반영합니다.
+  - 예: `HBM` -> `HBM_OR_3DS`, `Auto` -> `AUTO_PRODUCT`, `INPUT` 공정 처리
 
-## 5. query mode 판단 함수
+- `_inherit_from_context(...)`
+  - 역할: 이번 질문에 빠진 조건을 이전 문맥에서 이어받습니다.
+
+- `_fallback_date(text)`
+  - 역할: `오늘`, `어제` 같은 표현을 날짜 문자열로 보정합니다.
+
+## 5. Query Mode 판단 함수
 
 ### [manufacturing_agent/services/query_mode.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/services/query_mode.py)
 
 - `has_explicit_date_reference(user_input)`
-  - 역할: 날짜를 새로 지정했는지 확인
+  - 역할: 날짜를 새로 지정했는지 확인합니다.
 
 - `mentions_grouping_expression(user_input)`
-  - 역할: `공정별`, `MODE별`, `group by` 같은 집계 표현 감지
+  - 역할: `공정별`, `MODE별`, `group by` 같은 그룹화 요청을 감지합니다.
 
 - `needs_post_processing(...)`
-  - 역할: 추가 계산이 필요한 질문인지 판단
+  - 역할: 추가 계산이나 집계가 필요한 질문인지 판단합니다.
 
 - `looks_like_new_data_request(user_input)`
-  - 역할: 새 dataset이 필요한 질문인지 판단
+  - 역할: 새로운 조회가 필요한 질문인지 판단합니다.
 
 - `prune_followup_params(...)`
-  - 역할: 후속 분석에서 불필요한 필터 정리
+  - 역할: 후속 분석에서 불필요한 필터를 걷어냅니다.
 
 - `choose_query_mode(user_input, current_data, extracted_params)`
-  - 역할: `retrieval`과 `followup_transform` 중 최종 결정
+  - 역할: `retrieval` 과 `followup_transform` 중 최종 실행 경로를 고릅니다.
 
 ## 6. 요청 문맥 함수
 
 ### [manufacturing_agent/services/request_context.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/services/request_context.py)
 
 - `build_recent_chat_text(chat_history)`
-  - 역할: 대화 이력을 문자열로 변환
+  - 역할: 최근 대화 내용을 LLM 프롬프트용 텍스트로 정리합니다.
 
 - `get_current_table_columns(current_data)`
-  - 역할: 현재 표 컬럼 목록 추출
+  - 역할: 현재 결과 테이블의 컬럼을 추출합니다.
 
 - `has_current_data(current_data)`
-  - 역할: 후속 분석 가능한 현재 데이터가 있는지 확인
+  - 역할: 현재 데이터가 있는지 확인합니다.
 
 - `collect_applied_params(current_data)`
-  - 역할: 현재 결과에 적용된 필터 읽기
+  - 역할: 현재 데이터에 적용된 필터를 수집합니다.
 
 - `attach_result_metadata(...)`
-  - 역할: 결과 payload에 메타데이터 덧붙이기
+  - 역할: 조회 결과에 dataset key, label, applied params 같은 메타데이터를 붙입니다.
 
-- `collect_current_source_dataset_keys(current_data)`
-  - 역할: 현재 표가 어떤 dataset에서 왔는지 추적
-
-- `has_explicit_filter_change(...)`
-  - 역할: 사용자가 필터를 새로 바꿨는지 확인
-
-- `build_current_data_profile(current_data)`
-  - 역할: 현재 데이터 요약 생성
-
-- `build_unknown_retrieval_message()`
-  - 역할: 알 수 없는 조회 요청에 대한 안내 메시지 생성
-
-## 7. retrieval 계획 함수
+## 7. Retrieval 계획 함수
 
 ### [manufacturing_agent/services/retrieval_planner.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/services/retrieval_planner.py)
 
 - `plan_retrieval_request(...)`
-  - 역할: 필요한 raw dataset 계획
+  - 역할: 어떤 raw dataset 이 필요한지 계획합니다.
 
 - `review_retrieval_sufficiency(...)`
-  - 역할: 선택한 dataset 조합이 충분한지 검토
-
-- `build_missing_date_message(retrieval_keys)`
-  - 역할: 날짜 부족 안내 문구 생성
+  - 역할: 선택된 dataset 조합이 질문을 처리하기에 충분한지 검토합니다.
 
 - `extract_date_slices(user_input, default_date)`
-  - 역할: 여러 날짜 표현을 slice로 정리
+  - 역할: 여러 날짜가 언급된 질문을 날짜 조각으로 나눕니다.
 
 - `build_retrieval_jobs(...)`
-  - 역할: 실행 가능한 조회 job 생성
+  - 역할: 실제 실행 가능한 조회 작업 목록을 만듭니다.
 
 - `execute_retrieval_jobs(jobs)`
-  - 역할: 계획된 job 실행
-
-- `should_retry_retrieval_plan(...)`
-  - 역할: planning 재시도 필요 여부 판단
+  - 역할: 계획된 조회 작업을 실행합니다.
 
 ## 8. 병합 함수
 
 ### [manufacturing_agent/services/merge_service.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/services/merge_service.py)
 
-- `KNOWN_DIMENSION_COLUMNS`
-  - 역할: join 기준 후보가 되는 차원 컬럼 집합
-
-- `DATE_COLUMNS`
-  - 역할: 날짜 컬럼 집합
-
-- `LIKELY_METRIC_COLUMNS`
-  - 역할: 지표 컬럼으로 보이는 이름 모음
-
-- `should_suffix_metrics(tool_results)`
-  - 역할: metric 이름 충돌 방지 여부 판단
-
-- `should_exclude_date_from_join(tool_results)`
-  - 역할: 날짜를 join key에서 빼야 하는지 판단
-
-- `resolve_requested_dimensions(user_input, frames)`
-  - 역할: 사용자가 보고 싶은 차원 추론
-
 - `pick_join_columns(...)`
-  - 역할: join key 선택
+  - 역할: 두 데이터셋을 어떤 컬럼으로 연결할지 고릅니다.
 
 - `classify_join_cardinality(...)`
-  - 역할: 1:1, 1:N, N:1, N:M 판별
-
-- `refine_join_columns_for_cardinality(...)`
-  - 역할: 위험한 N:M join 방지
-
-- `find_join_rule(left_dataset, right_dataset)`
-  - 역할: custom join rule 조회
+  - 역할: 1:1, 1:N, N:1, N:M 관계를 판단합니다.
 
 - `plan_merge_strategy(...)`
-  - 역할: 병합 순서와 기준 계획
+  - 역할: 여러 데이터셋을 어떤 순서와 키로 병합할지 계획합니다.
 
 - `build_analysis_base_table(tool_results, user_input)`
-  - 역할: 여러 dataset을 하나의 분석용 표로 합치는 핵심 함수
+  - 역할: 다중 조회 결과를 분석 가능한 기준 테이블로 만듭니다.
 
 - `build_multi_dataset_overview(tool_results)`
-  - 역할: merge 전 개요 표 생성
+  - 역할: 병합 대신 데이터셋 개요만 보여줘야 할 때 요약 결과를 만듭니다.
 
-## 9. 실행 조율 함수
+## 9. 실행 조립 함수
 
 ### [manufacturing_agent/services/runtime_service.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/services/runtime_service.py)
 
-- `mark_primary_result(tool_results, primary_index)`
-  - 역할: 대표 결과 지정
+- `ensure_filtered_result_rows(...)`
+  - 역할: 최종 표시 직전에 필터가 실제 테이블에도 반영되도록 한 번 더 보정합니다.
 
 - `run_analysis_after_retrieval(...)`
-  - 역할: 조회 후 필요한 분석까지 연결
+  - 역할: 조회 후 추가 분석이 필요하면 바로 이어서 실행합니다.
 
 - `run_multi_retrieval_jobs(...)`
-  - 역할: 다중 조회, 병합, 후처리 분석까지 조율
+  - 역할: 다중 조회, 병합, 분석을 한 흐름으로 묶어 처리합니다.
 
 - `run_followup_analysis(...)`
-  - 역할: 현재 표 기반 후속 분석 수행
+  - 역할: 현재 데이터에 대한 후속 분석을 실행합니다.
 
 - `run_retrieval(...)`
-  - 역할: retrieval 경로를 서비스 계층에서 묶어 처리
+  - 역할: retrieval 경로 전체를 조립해서 실행합니다.
 
 ## 10. 응답 생성 함수
 
 ### [manufacturing_agent/services/response_service.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/services/response_service.py)
 
 - `format_result_preview(result)`
-  - 역할: LLM 응답용 결과 요약 생성
+  - 역할: 결과 요약을 LLM 입력용 텍스트로 만듭니다.
 
 - `build_response_prompt(user_input, result, chat_history)`
-  - 역할: 자연어 응답 프롬프트 작성
+  - 역할: 자연어 응답 생성 프롬프트를 구성합니다.
 
 - `generate_response(user_input, result, chat_history)`
-  - 역할: 최종 사용자 응답 생성
+  - 역할: 최종 사용자 응답을 생성합니다.
 
 ## 11. 분석 함수
 
 ### [manufacturing_agent/analysis/helpers.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/analysis/helpers.py)
-
-- `extract_columns(data)`
-- `dataset_profile(data)`
-- `find_metric_column(columns, query_text=None)`
-- `find_requested_dimensions(query_text, columns)`
-- `parse_top_n(query_text)`
-- `minimal_fallback_plan(query_text, columns)`
-- `validate_plan_columns(plan, columns)`
-  - 역할: 분석 전 컬럼 탐색과 fallback 보조
+- 역할: 컬럼 탐색, fallback 계획, 요청 차원 추출 등 분석 보조 기능을 제공합니다.
 
 ### [manufacturing_agent/analysis/llm_planner.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/analysis/llm_planner.py)
-
-- `build_dataset_specific_hints(...)`
-- `build_llm_prompt(...)`
-- `build_llm_plan(...)`
-  - 역할: LLM 분석 계획 생성
+- 역할: 분석용 LLM 계획을 생성합니다.
 
 ### [manufacturing_agent/analysis/safe_executor.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/analysis/safe_executor.py)
-
-- `validate_python_code(code)`
-- `execute_safe_dataframe_code(code, data)`
-  - 역할: pandas 코드 안전 실행
+- 역할: pandas 코드를 안전하게 검증하고 실행합니다.
 
 ### [manufacturing_agent/analysis/engine.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/analysis/engine.py)
-
-- `_execute_plan(...)`
-- `_execute_with_retry(...)`
-- `_build_domain_rule_fallback_plan(...)`
-- `execute_analysis_query(query_text, data, source_tool_name="")`
-  - 역할: 분석 엔진 중심 실행
+- 역할: 분석 엔진 전체를 조립하고 재시도, fallback 까지 담당합니다.
 
 ## 12. 데이터 함수
 
 ### [manufacturing_agent/data/retrieval.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/data/retrieval.py)
-
-대표 dataset 함수:
 
 - `get_production_data`
 - `get_target_data`
@@ -295,70 +252,44 @@
 - `get_wip_status`
 - `get_hold_lot_data`
 - `get_lot_trace_data`
-
-공통 역할:
-
-- 입력 필터를 받아 mock 제조 데이터를 생성
-- 표 형식 결과와 요약을 함께 반환
+  - 역할: mock 제조 데이터를 생성하고 필터링한 결과를 반환합니다.
 
 ## 13. 도메인 함수와 요소
 
 ### [manufacturing_agent/domain/knowledge.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/domain/knowledge.py)
 
 - `PROCESS_GROUPS`
-- `PRODUCTS`
-- `SPECIAL_PRODUCT_ALIASES`
-- `DATASET_METADATA`
-  - 역할: 제조 도메인의 기본 지식 정의
+- `PROCESS_SPECS`
+- `MODE_GROUPS`
+- `DEN_GROUPS`
+- `TECH_GROUPS`
+- `PKG_TYPE1_GROUPS`
+- `PKG_TYPE2_GROUPS`
+  - 역할: 제조 도메인의 기본 규칙과 값 목록을 정의합니다.
 
 - `build_domain_knowledge_prompt()`
-  - 역할: 도메인 지식을 LLM 프롬프트용 텍스트로 변환
+  - 역할: 도메인 지식을 LLM 프롬프트용 텍스트로 변환합니다.
 
 ### [manufacturing_agent/domain/registry.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/domain/registry.py)
 
-- `load_domain_registry`
-- `register_domain_submission`
-- `validate_domain_payload`
 - `expand_registered_values`
+  - 역할: 등록된 값 그룹을 실제 값 목록으로 확장합니다.
+
+- `detect_registered_values`
+  - 역할: 질문에서 등록된 값 그룹을 탐지합니다.
+
 - `match_registered_analysis_rules`
+  - 역할: 질문과 맞는 분석 규칙을 찾습니다.
+
 - `build_registered_domain_prompt`
-  - 역할: 사용자 정의 도메인 규칙 저장과 반영
+  - 역할: 사용자 정의 도메인 규칙을 LLM 프롬프트에 넣을 수 있게 정리합니다.
 
 ## 14. Langflow 함수와 요소
 
-### [langflow_version/component_base.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_version/component_base.py)
-
-- `make_data(payload, text=None)`
-  - 역할: Langflow `Data` 생성
-
-- `read_data_payload(value)`
-  - 역할: Langflow `Data`를 일반 dict로 변환
-
 ### [langflow_version/workflow.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_version/workflow.py)
 
-- `build_initial_state(...)`
-  - 역할: Langflow 입력을 공통 state로 만들기
-
-- `resolve_request_step(state)`
-- `plan_retrieval_step(state)`
-- `run_followup_step(state)`
-- `run_single_retrieval_step(state)`
-- `run_multi_retrieval_step(state)`
-- `finish_step(state)`
-  - 역할: 각 단계를 LangGraph 없이 개별 실행
-
-- `run_next_branch(state)`
-  - 역할: 상태를 보고 다음 branch 실행
-
-- `run_langflow_workflow(...)`
-  - 역할: Langflow 버전 전체 실행 진입점
+- 역할: LangGraph 없이도 같은 흐름을 단계별로 실행할 수 있게 만든 워크플로우입니다.
 
 ### [langflow_version/components.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_version/components.py)
 
-- `ManufacturingStateComponent`
-- `ResolveRequestComponent`
-- `PlanRetrievalComponent`
-- `RunWorkflowBranchComponent`
-- `FinishManufacturingResultComponent`
-- `ManufacturingAgentComponent`
-  - 역할: Langflow 캔버스에서 사용하는 실제 컴포넌트
+- 역할: Langflow 캔버스에서 사용할 컴포넌트를 정의합니다.
