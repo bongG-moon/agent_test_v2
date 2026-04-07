@@ -95,6 +95,32 @@ def test_resolve_required_params_detects_pkg_value_without_field_specific_helper
     assert result["pkg_type1"] == ["FCBGA"]
 
 
+def test_resolve_required_params_normalizes_special_product_with_domain_rule(monkeypatch):
+    _stub_llms(monkeypatch)
+
+    result = parameter_service.resolve_required_params(
+        user_input="오늘 HBM 제품 생산량 알려줘",
+        chat_history_text="",
+        current_data_columns=[],
+        context={},
+    )
+
+    assert result["product_name"] == "HBM_OR_3DS"
+
+
+def test_resolve_required_params_maps_input_keyword_to_process_with_domain_rule(monkeypatch):
+    _stub_llms(monkeypatch)
+
+    result = parameter_service.resolve_required_params(
+        user_input="오늘 투입 생산량 알려줘",
+        chat_history_text="",
+        current_data_columns=[],
+        context={},
+    )
+
+    assert result["process_name"] == ["INPUT"]
+
+
 def test_choose_query_mode_keeps_followup_for_same_scope_transform():
     current_data = {
         "success": True,

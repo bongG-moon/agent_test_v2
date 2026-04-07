@@ -470,6 +470,29 @@ SPECIAL_PRODUCT_ALIASES = {
 }
 
 
+# 질문 텍스트에서 특정 제품군 키로 바로 정규화해야 하는 규칙입니다.
+# parameter_service 는 이 규칙을 읽어서 공통 방식으로 처리합니다.
+SPECIAL_PRODUCT_KEYWORD_RULES = [
+    {
+        "target_value": "HBM_OR_3DS",
+        "aliases": ["HBM_OR_3DS", "HBM/3DS", *SPECIAL_PRODUCT_ALIASES["HBM_OR_3DS"]],
+    },
+    {
+        "target_value": "AUTO_PRODUCT",
+        "aliases": ["AUTO_PRODUCT", "AUTO", *SPECIAL_PRODUCT_ALIASES["AUTO_PRODUCT"]],
+    },
+]
+
+
+# 질문 안의 특정 키워드를 공정 조건으로 바꿔야 하는 규칙입니다.
+PROCESS_KEYWORD_RULES = [
+    {
+        "target_value": "INPUT",
+        "aliases": ["투입", "input", "인풋"],
+    }
+]
+
+
 AUTO_SUFFIXES = {"I", "O", "N", "P", "1", "V"}
 
 
@@ -552,10 +575,15 @@ def build_domain_knowledge_prompt() -> str:
     for rule in SPECIAL_DOMAIN_RULES:
         lines.append(f"- {rule}")
 
-    lines.append("\n## HBM/Auto향 해석 규칙")
-    lines.append("- HBM 또는 3DS 계열 표현은 OR 조건으로 같은 의미다. product_name에 'HBM_OR_3DS'를 넣어 downstream matcher가 TSV_DIE_TYP='TSV' 조건으로 해석하게 한다.")
-    lines.append("- Auto향을 들으면 product_name에 'AUTO_PRODUCT'를 넣어 downstream matcher가 MCP_NO suffix 규칙으로 해석하게 한다.")
-    lines.append("- INPUT/투입량/인풋을 들으면 process를 ['INPUT']으로 추출한다.")
+    lines.append("\n## 특수 제품/공정 정규화 규칙")
+    for rule in SPECIAL_PRODUCT_KEYWORD_RULES:
+        lines.append(
+            f"- 제품 별칭 {', '.join(rule['aliases'])} 는 product_name '{rule['target_value']}' 로 정규화한다."
+        )
+    for rule in PROCESS_KEYWORD_RULES:
+        lines.append(
+            f"- 공정 키워드 {', '.join(rule['aliases'])} 는 process '{rule['target_value']}' 로 정규화한다."
+        )
 
     lines.append("\n## 공통 추출 규칙")
     lines.append("1. 사용자가 언급하지 않은 필드는 null로 설정한다.")

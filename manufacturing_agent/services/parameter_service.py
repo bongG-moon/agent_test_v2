@@ -15,7 +15,9 @@ from ..domain.knowledge import (
     PKG_TYPE1_GROUPS,
     PKG_TYPE2_GROUPS,
     PROCESS_GROUPS,
+    PROCESS_KEYWORD_RULES,
     PROCESS_SPECS,
+    SPECIAL_PRODUCT_KEYWORD_RULES,
     TECH_GROUPS,
     build_domain_knowledge_prompt,
 )
@@ -122,6 +124,17 @@ def _contains_alias(text: str, alias: str) -> bool:
     return bool(re.search(pattern, normalized_text, flags=re.IGNORECASE))
 
 
+def _find_keyword_rule_targets(text: Any, keyword_rules: List[Dict[str, Any]]) -> List[str] | None:
+    """도메인 키워드 규칙 목록을 보고 질문이나 값에서 목표 값을 찾는다."""
+
+    matched_targets: List[str] = []
+    for rule in keyword_rules:
+        aliases = rule.get("aliases", [])
+        if any(_contains_alias(str(text or ""), alias) for alias in aliases):
+            matched_targets.append(str(rule.get("target_value", "")).strip())
+    return _merge_unique_values(matched_targets)
+
+
 def _canonicalize_group_values(
     raw_values: Any,
     groups: Dict[str, Dict[str, Any]],
@@ -200,31 +213,6 @@ def _detect_candidate_values(
     return _merge_unique_values(detected_values)
 
 
-def _normalize_special_product_name(value: Any) -> str | None:
-    """HBM/3DS, Auto 같은 특수 제품 표현을 내부 코드로 바꾼다."""
-
-    normalized = normalize_text(value)
-    if not normalized:
-        return None
-
-    hbm_or_3ds_tokens = [
-        "hbm_or_3ds",
-        "hbm/3ds",
-        "hbm",
-        "3ds",
-        "hbm제품",
-        "hbm자재",
-        "3ds제품",
-    ]
-    auto_tokens = ["auto_product", "auto", "automotive", "차량", "오토"]
-
-    if any(token in normalized for token in hbm_or_3ds_tokens):
-        return "HBM_OR_3DS"
-    if any(token in normalized for token in auto_tokens):
-        return "AUTO_PRODUCT"
-    return None
-
-
 def _resolve_group_field(
     extracted_params: RequiredParams,
     user_input: str,
@@ -290,6 +278,43 @@ def _resolve_scalar_registered_field(
         extracted_params[field_name] = detected_value[0]
 
 
+def _resolve_keyword_based_scalar_field(
+    extracted_params: RequiredParams,
+    user_input: str,
+    field_name: str,
+    keyword_rules: List[Dict[str, Any]],
+) -> None:
+    """도메인 키워드 규칙으로 단일 값 필드를 정규화한다."""
+
+    normalized_value = _find_keyword_rule_targets(extracted_params.get(field_name), keyword_rules)
+    if normalized_value:
+        extracted_params[field_name] = normalized_value[0]
+        return
+
+    if extracted_params.get(field_name):
+        return
+
+    detected_value = _find_keyword_rule_targets(user_input, keyword_rules)
+    if detected_value:
+        extracted_params[field_name] = detected_value[0]
+
+
+def _resolve_keyword_based_process_field(
+    extracted_params: RequiredParams,
+    user_input: str,
+    keyword_rules: List[Dict[str, Any]],
+) -> None:
+    """질문 키워드를 공정 값으로 바꾸는 규칙을 적용한다."""
+
+    detected_processes = _find_keyword_rule_targets(user_input, keyword_rules)
+    if not extracted_params.get("process_name") and detected_processes:
+        extracted_params["process_name"] = detected_processes
+        return
+
+    if extracted_params.get("process_name") == ["INPUT"] and not detected_processes:
+        extracted_params["process_name"] = None
+
+
 def _inherit_from_context(extracted_params: RequiredParams, context: Dict[str, Any] | None) -> RequiredParams:
     """이번 질문에서 비어 있는 조건은 직전 문맥에서 이어받는다."""
 
@@ -352,22 +377,13 @@ def _fallback_date(text: str) -> str | None:
 def _apply_domain_overrides(extracted_params: RequiredParams, user_input: str) -> RequiredParams:
     """LLM 초안에 도메인 규칙과 사용자 정의 규칙을 덧입혀 최종 필터로 정리한다."""
 
-    normalized = normalize_text(user_input)
-    input_requested = any(token in normalized for token in ["투입", "input", "인풋"])
-
-    if not extracted_params.get("process_name") and input_requested:
-        extracted_params["process_name"] = ["INPUT"]
-
-    normalized_product_name = _normalize_special_product_name(extracted_params.get("product_name"))
-    if normalized_product_name:
-        extracted_params["product_name"] = normalized_product_name
-    elif not extracted_params.get("product_name"):
-        requested_special_product = _normalize_special_product_name(user_input)
-        if requested_special_product:
-            extracted_params["product_name"] = requested_special_product
-
-    if extracted_params.get("process_name") == ["INPUT"] and not input_requested:
-        extracted_params["process_name"] = None
+    _resolve_keyword_based_process_field(extracted_params, user_input, PROCESS_KEYWORD_RULES)
+    _resolve_keyword_based_scalar_field(
+        extracted_params,
+        user_input,
+        field_name="product_name",
+        keyword_rules=SPECIAL_PRODUCT_KEYWORD_RULES,
+    )
 
     for spec in GROUP_FIELD_SPECS:
         _resolve_group_field(
@@ -380,10 +396,6 @@ def _apply_domain_overrides(extracted_params: RequiredParams, user_input: str) -
 
     _resolve_oper_num_field(extracted_params, user_input)
 
-    extracted_params["product_name"] = (
-        _normalize_special_product_name(extracted_params.get("product_name"))
-        or extracted_params.get("product_name")
-    )
     _resolve_scalar_registered_field(extracted_params, user_input, "product_name")
     _resolve_scalar_registered_field(extracted_params, user_input, "line_name")
     _resolve_scalar_registered_field(extracted_params, user_input, "mcp_no")

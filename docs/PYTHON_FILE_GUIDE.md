@@ -80,6 +80,7 @@
   - 그룹형 필드 처리: `process_name`, `mode`, `den`, `tech`, `pkg_type1`, `pkg_type2`
   - 코드형 필드 처리: `oper_num`
   - 단일 값 필드 처리: `product_name`, `line_name`, `mcp_no`
+- `HBM`, `AUTO`, `투입` 같은 특수 케이스는 함수 안에 하드코딩하지 않고 [knowledge.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/domain/knowledge.py)의 키워드 규칙을 읽어서 처리합니다.
 - 값 병합은 `_merge_unique_values(...)` 하나로 통일되어 있습니다.
 
 ### [manufacturing_agent/services/query_mode.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent/services/query_mode.py)
