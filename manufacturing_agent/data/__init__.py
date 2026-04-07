@@ -1,1 +1,1 @@
-"""Dataset catalog and retrieval helpers."""
+"""데이터셋 목록과 조회 보조 모듈."""

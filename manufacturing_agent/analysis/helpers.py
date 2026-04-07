@@ -1,4 +1,4 @@
-"""Pure helper functions for current-table analysis."""
+"""현재 테이블 분석에 필요한 보조 함수 모음."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Plan raw dataset retrieval work before any heavy analysis runs."""
+"""원천 데이터 조회 계획을 세우는 서비스."""
 
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
@@ -33,7 +33,11 @@ def plan_retrieval_request(
     current_data: Dict[str, Any] | None,
     retry_context: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
-    """Choose which raw datasets are needed for the user's question."""
+    """질문에 필요한 원천 데이터셋을 고른다.
+
+    이 함수는 "무슨 데이터를 가져와야 최종 답을 만들 수 있는가?" 에 집중한다.
+    단순 키워드 매칭만 쓰지 않고, LLM 계획 + 규칙 기반 보강을 함께 사용한다.
+    """
 
     current_columns = get_current_table_columns(current_data)
     retry_section = ""
@@ -93,6 +97,7 @@ Return only:
     matched_rules = match_registered_analysis_rules(user_input)
     normalized_query = normalize_text(user_input)
 
+    # 단순한 단일 조회 질문은 규칙 기반 결과를 우선 믿어도 충분하다.
     if (
         rule_based_keys
         and not matched_rules
@@ -131,7 +136,11 @@ def review_retrieval_sufficiency(
     source_results: List[Dict[str, Any]],
     retrieval_plan: Dict[str, Any] | None,
 ) -> Dict[str, Any]:
-    """Check whether the selected raw datasets are enough for derived analysis."""
+    """선택한 데이터셋만으로 진짜 답을 만들 수 있는지 재검토한다.
+
+    예를 들어 처음에는 `production` 만 뽑았지만,
+    실제 질문이 달성률이었다면 `target` 도 더 필요할 수 있다.
+    """
 
     if not source_results:
         return {"is_sufficient": True, "missing_dataset_keys": [], "reason": ""}
@@ -189,6 +198,8 @@ Return only:
 
 
 def build_missing_date_message(retrieval_keys: List[str]) -> str:
+    """날짜가 빠졌을 때 사용자에게 보여줄 안내 문구를 만든다."""
+
     labels = get_dataset_labels_for_message([key for key in retrieval_keys if dataset_requires_date(key)])
     if labels:
         return (
@@ -200,6 +211,8 @@ def build_missing_date_message(retrieval_keys: List[str]) -> str:
 
 
 def extract_date_slices(user_input: str, default_date: str | None) -> List[Dict[str, str]]:
+    """질문 안에서 날짜 범위를 추출해 retrieval job 단위로 나눈다."""
+
     normalized = normalize_text(user_input)
     slices: List[Dict[str, str]] = []
     now = datetime.now()
@@ -222,6 +235,8 @@ def extract_date_slices(user_input: str, default_date: str | None) -> List[Dict[
 
 
 def build_retrieval_jobs(user_input: str, extracted_params: Dict[str, Any], retrieval_keys: List[str]) -> List[Dict[str, Any]]:
+    """조회 계획을 실제 실행 단위(job) 리스트로 변환한다."""
+
     jobs: List[Dict[str, Any]] = []
     date_slices = extract_date_slices(user_input, extracted_params.get("date"))
     use_repeated_date_slices = len(retrieval_keys) == 1 and len(date_slices) > 1
@@ -243,6 +258,8 @@ def build_retrieval_jobs(user_input: str, extracted_params: Dict[str, Any], retr
 
 
 def execute_retrieval_jobs(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """job 리스트를 실제 조회 함수 실행으로 바꾼다."""
+
     import re
 
     results: List[Dict[str, Any]] = []
@@ -269,6 +286,8 @@ def should_retry_retrieval_plan(
     source_results: List[Dict[str, Any]],
     analysis_result: Dict[str, Any],
 ) -> bool:
+    """초기 조회 계획이 부족해서 다시 계획을 세워야 하는지 판단한다."""
+
     if not retrieval_plan or not retrieval_plan.get("needs_post_processing"):
         return False
     if len(source_results) != 1:

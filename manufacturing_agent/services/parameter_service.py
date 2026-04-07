@@ -1,4 +1,6 @@
-﻿import json
+"""사용자 질문에서 조회 파라미터를 추출하는 서비스."""
+
+import json
 import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
@@ -6,7 +8,6 @@ from typing import Any, Dict, List
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..analysis.contracts import RequiredParams
-from ..shared.config import SYSTEM_PROMPT, get_llm
 from ..domain.knowledge import (
     DEN_GROUPS,
     INDIVIDUAL_PROCESSES,
@@ -22,10 +23,13 @@ from ..domain.registry import (
     detect_registered_values,
     expand_registered_values,
 )
+from ..shared.config import SYSTEM_PROMPT, get_llm
 from ..shared.filter_utils import normalize_text
 
 
 def _get_llm_for_task(task: str):
+    """테스트 환경과 실환경 모두에서 안전하게 LLM 객체를 가져온다."""
+
     try:
         return get_llm(task=task)
     except TypeError:
@@ -33,6 +37,8 @@ def _get_llm_for_task(task: str):
 
 
 def _extract_text_from_response(content: Any) -> str:
+    """LLM 응답 내용을 문자열 하나로 평탄화한다."""
+
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -47,6 +53,8 @@ def _extract_text_from_response(content: Any) -> str:
 
 
 def _parse_json_block(text: str) -> Dict[str, Any]:
+    """코드블록이 섞인 응답에서도 JSON 객체만 안전하게 추출한다."""
+
     cleaned = str(text or "").strip()
     if "```json" in cleaned:
         cleaned = cleaned.split("```json", 1)[1].split("```", 1)[0]
@@ -63,6 +71,8 @@ def _parse_json_block(text: str) -> Dict[str, Any]:
 
 
 def _inherit_from_context(extracted_params: RequiredParams, context: Dict[str, Any] | None) -> RequiredParams:
+    """이번 질문에서 빠진 조건을 직전 대화 컨텍스트에서 상속한다."""
+
     if not isinstance(context, dict):
         return extracted_params
 
@@ -109,6 +119,8 @@ def _inherit_from_context(extracted_params: RequiredParams, context: Dict[str, A
 
 
 def _fallback_date(text: str) -> str | None:
+    """LLM이 날짜를 못 뽑았을 때 `오늘/어제` 정도는 규칙으로 보완한다."""
+
     lower = str(text or "").lower()
     now = datetime.now()
     if "오늘" in lower or "today" in lower:
@@ -119,6 +131,8 @@ def _fallback_date(text: str) -> str | None:
 
 
 def _detect_oper_num(text: str) -> List[str] | None:
+    """질문에서 공정번호 4자리를 직접 찾는다."""
+
     patterns = [
         r"(?:공정번호|oper_num|oper|operation)\s*[:=]?\s*(\d{4})",
         r"(\d{4})\s*번?\s*공정",
@@ -132,6 +146,8 @@ def _detect_oper_num(text: str) -> List[str] | None:
 
 
 def _detect_pkg_values(text: str, allowed_values: List[str]) -> List[str] | None:
+    """질문 안에 특정 PKG 값이 들어 있는지 단순 탐지한다."""
+
     normalized = normalize_text(text)
     detected: List[str] = []
     for value in allowed_values:
@@ -141,6 +157,8 @@ def _detect_pkg_values(text: str, allowed_values: List[str]) -> List[str] | None
 
 
 def _as_list(value: Any) -> List[str]:
+    """값을 항상 문자열 리스트 형태로 맞춘다."""
+
     if value is None:
         return []
     if isinstance(value, list):
@@ -150,6 +168,8 @@ def _as_list(value: Any) -> List[str]:
 
 
 def _dedupe(values: List[str]) -> List[str]:
+    """순서를 유지하면서 중복만 제거한다."""
+
     ordered: List[str] = []
     for value in values:
         if value and value not in ordered:
@@ -158,11 +178,15 @@ def _dedupe(values: List[str]) -> List[str]:
 
 
 def _merge_optional_lists(current_value: Any, extra_value: Any) -> List[str] | None:
+    """기존 값과 추가 탐지 값을 합친 뒤 중복을 제거한다."""
+
     merged = _dedupe([*_as_list(current_value), *_as_list(extra_value)])
     return merged or None
 
 
 def _contains_alias(text: str, alias: str) -> bool:
+    """별칭이 독립된 토큰처럼 등장했는지 확인한다."""
+
     normalized_text = normalize_text(text)
     normalized_alias = normalize_text(alias)
     if not normalized_text or not normalized_alias:
@@ -176,6 +200,13 @@ def _canonicalize_group_values(
     groups: Dict[str, Dict[str, Any]],
     literal_values: List[str] | None = None,
 ) -> List[str] | None:
+    """그룹 별칭을 실제 값 목록으로 확장한다.
+
+    예:
+    - `DA` -> `D/A1`, `D/A2`, ...
+    - `DDR 계열` -> `DDR4`, `DDR5`
+    """
+
     canonical_values: List[str] = []
 
     for raw_value in _as_list(raw_values):
@@ -208,6 +239,8 @@ def _detect_group_values_from_text(
     groups: Dict[str, Dict[str, Any]],
     literal_values: List[str] | None = None,
 ) -> List[str] | None:
+    """질문 전체를 보고 그룹/리터럴 값 후보를 직접 탐지한다."""
+
     detected_values: List[str] = []
 
     for group in groups.values():
@@ -224,6 +257,8 @@ def _detect_group_values_from_text(
 
 
 def _normalize_special_product_name(value: Any) -> str | None:
+    """HBM/3DS, AUTO 같은 의미형 제품 질의를 내부 코드로 바꾼다."""
+
     normalized = normalize_text(value)
     if not normalized:
         return None
@@ -247,6 +282,8 @@ def _normalize_special_product_name(value: Any) -> str | None:
 
 
 def _apply_domain_overrides(extracted_params: RequiredParams, user_input: str) -> RequiredParams:
+    """도메인 규칙과 사용자 정의 레지스트리를 이용해 파라미터를 보정한다."""
+
     normalized = normalize_text(user_input)
     input_requested = any(token in normalized for token in ["투입", "input", "인풋"])
 
@@ -402,6 +439,15 @@ def resolve_required_params(
     current_data_columns: List[str],
     context: Dict[str, Any] | None = None,
 ) -> RequiredParams:
+    """질문에서 조회용 파라미터를 추출해 반환한다.
+
+    흐름은 다음과 같다.
+    1. LLM에게 JSON 형태의 초안 파라미터를 요청
+    2. 규칙 기반 날짜/공정번호 보정
+    3. 도메인 그룹 확장과 사용자 정의 레지스트리 적용
+    4. 직전 대화 컨텍스트 상속
+    """
+
     today = datetime.now().strftime("%Y%m%d")
     domain_prompt = build_domain_knowledge_prompt()
     custom_domain_prompt = build_registered_domain_prompt()
@@ -475,4 +521,3 @@ Return only:
     }
     extracted_params = _apply_domain_overrides(extracted_params, user_input)
     return _inherit_from_context(extracted_params, context)
-

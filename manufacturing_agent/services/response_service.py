@@ -1,4 +1,4 @@
-"""Human-readable response generation for UI output."""
+"""분석 결과를 사람이 읽기 쉬운 자연어 응답으로 바꾸는 서비스."""
 
 import json
 from typing import Any, Dict, List
@@ -12,6 +12,8 @@ from .request_context import build_recent_chat_text, get_llm_for_task
 
 
 def format_result_preview(result: Dict[str, Any], max_rows: int = 5) -> str:
+    """결과 테이블 일부를 JSON 미리보기 형태로 만든다."""
+
     rows = result.get("data", [])
     if not isinstance(rows, list) or not rows:
         return "결과 없음"
@@ -21,6 +23,8 @@ def format_result_preview(result: Dict[str, Any], max_rows: int = 5) -> str:
 
 
 def build_response_prompt(user_input: str, result: Dict[str, Any], chat_history: List[Dict[str, str]]) -> str:
+    """최종 설명문을 만들기 위한 LLM 프롬프트를 조립한다."""
+
     return f"""당신은 제조 데이터 분석 결과를 한국어로 간결하게 설명하는 어시스턴트입니다.
 
 사용자 질문:
@@ -51,6 +55,12 @@ def build_response_prompt(user_input: str, result: Dict[str, Any], chat_history:
 
 
 def generate_response(user_input: str, result: Dict[str, Any], chat_history: List[Dict[str, str]]) -> str:
+    """최종 사용자 응답을 생성한다.
+
+    마지막에 `sanitize_markdown_text` 를 한 번 더 거쳐서,
+    `~~` 같은 마크다운 특수문자 때문에 화면이 깨지지 않도록 방어한다.
+    """
+
     prompt = build_response_prompt(user_input, result, chat_history)
     try:
         llm = get_llm_for_task("response_summary")

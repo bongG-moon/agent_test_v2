@@ -1,1 +1,1 @@
-"""Streamlit UI helpers."""
+"""Streamlit UI 보조 모듈."""

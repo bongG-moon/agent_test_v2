@@ -1,1 +1,1 @@
-"""Analysis helpers, contracts, and execution engines."""
+"""분석 보조 함수, 계약 타입, 실행 엔진 모음."""

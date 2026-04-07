@@ -1,14 +1,12 @@
 from pathlib import Path
 
-from manufacturing_agent.domain import registry
-from manufacturing_agent.services import parameter_service, request_context
-from manufacturing_agent.services import response_service
-from manufacturing_agent.services.query_mode import choose_query_mode
-from manufacturing_agent.adapters.langflow_nodes import extract_params_component
-from manufacturing_agent.agent import run_agent
-from manufacturing_agent.shared.text_sanitizer import sanitize_markdown_text
 from langflow_version.components import ManufacturingAgentComponent
 from langflow_version.workflow import build_initial_state, resolve_request_step, run_langflow_workflow
+from manufacturing_agent.agent import extract_params_component, run_agent
+from manufacturing_agent.domain import registry
+from manufacturing_agent.services import parameter_service, request_context, response_service
+from manufacturing_agent.services.query_mode import choose_query_mode
+from manufacturing_agent.shared.text_sanitizer import sanitize_markdown_text
 
 
 class _FakeResponse:
@@ -34,7 +32,7 @@ def test_project_has_beginner_friendly_package_layout():
     assert (root / "manufacturing_agent" / "graph").exists()
     assert (root / "manufacturing_agent" / "services").exists()
     assert (root / "manufacturing_agent" / "domain").exists()
-    assert (root / "manufacturing_agent" / "adapters" / "langflow_nodes.py").exists()
+    assert (root / "manufacturing_agent" / "agent.py").exists()
 
 
 def test_expand_registered_process_group_uses_builtin_domain_values():

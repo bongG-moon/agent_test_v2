@@ -1,1 +1,1 @@
-"""Manufacturing domain knowledge and user-registered rules."""
+"""제조 도메인 지식과 사용자 등록 규칙 모음."""

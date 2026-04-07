@@ -1,4 +1,4 @@
-"""Streamlit page for user-managed domain registry entries."""
+"""사용자 정의 도메인 규칙을 관리하는 Streamlit 화면."""
 
 from __future__ import annotations
 

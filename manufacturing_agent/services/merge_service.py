@@ -1,4 +1,4 @@
-"""Merge multiple raw datasets into one analysis-friendly table."""
+"""여러 원천 데이터셋을 분석 가능한 하나의 테이블로 합치는 서비스."""
 
 import re
 from typing import Any, Dict, List
@@ -56,11 +56,15 @@ LIKELY_METRIC_COLUMNS = {
 
 
 def should_suffix_metrics(tool_results: List[Dict[str, Any]]) -> bool:
+    """같은 데이터셋을 여러 번 조회한 경우 metric 컬럼에 suffix 가 필요한지 판단한다."""
+
     identifiers = [str(result.get("dataset_key") or result.get("tool_name") or "").split("__", 1)[0] for result in tool_results]
     return len(identifiers) != len(set(identifiers))
 
 
 def should_exclude_date_from_join(tool_results: List[Dict[str, Any]]) -> bool:
+    """같은 데이터셋을 날짜만 다르게 여러 번 조회했으면 날짜를 join key 에서 뺀다."""
+
     raw_dataset_keys = [str(result.get("dataset_key", "")).split("__", 1)[0] for result in tool_results]
     unique_dataset_keys = set(raw_dataset_keys)
     distinct_dates = {
@@ -72,6 +76,8 @@ def should_exclude_date_from_join(tool_results: List[Dict[str, Any]]) -> bool:
 
 
 def is_probable_dimension_column(column_name: str) -> bool:
+    """컬럼이 차원 컬럼인지 측정 컬럼인지 추정한다."""
+
     if column_name in KNOWN_DIMENSION_COLUMNS:
         return True
     if column_name in LIKELY_METRIC_COLUMNS:
@@ -86,6 +92,8 @@ def is_probable_dimension_column(column_name: str) -> bool:
 
 
 def resolve_requested_dimensions(user_input: str, frames: List[pd.DataFrame]) -> List[str]:
+    """사용자가 질문에서 언급한 차원 컬럼 후보를 모은다."""
+
     all_columns: List[str] = []
     for frame in frames:
         for column in frame.columns:
@@ -100,6 +108,8 @@ def pick_join_columns(
     requested_dimensions: List[str],
     exclude_date: bool,
 ) -> List[str]:
+    """두 테이블 사이에서 우선 사용할 join key 후보를 고른다."""
+
     shared_columns = set(left_df.columns) & set(right_df.columns)
     if exclude_date:
         shared_columns -= DATE_COLUMNS
@@ -122,6 +132,8 @@ def pick_join_columns(
 
 
 def classify_join_cardinality(left_df: pd.DataFrame, right_df: pd.DataFrame, join_columns: List[str]) -> str:
+    """선택한 join key 로 병합했을 때 관계가 1:1 / 1:N / N:1 / N:M 중 무엇인지 판단한다."""
+
     if not join_columns:
         return "unknown"
     left_unique = not left_df.duplicated(subset=join_columns).any()
@@ -142,6 +154,8 @@ def refine_join_columns_for_cardinality(
     requested_dimensions: List[str],
     exclude_date: bool,
 ) -> tuple[List[str], str, List[str]]:
+    """초기 join key 로 N:M 이 나오면 후보 컬럼을 더 붙여 안전한 병합을 시도한다."""
+
     current_columns = list(join_columns)
     current_cardinality = classify_join_cardinality(left_df, right_df, current_columns)
     if current_cardinality != "many_to_many":
@@ -164,6 +178,8 @@ def refine_join_columns_for_cardinality(
 
 
 def find_join_rule(left_dataset: str, right_dataset: str) -> Dict[str, Any] | None:
+    """사용자 정의 join 규칙 중 현재 조합과 맞는 규칙을 찾는다."""
+
     for rule in get_registered_join_rules():
         if (
             normalize_text(rule.get("base_dataset", "")) == normalize_text(left_dataset)
@@ -180,6 +196,8 @@ def expand_join_rule_columns(
     requested_dimensions: List[str],
     exclude_date: bool,
 ) -> List[str]:
+    """등록된 join key 에 요청 차원 컬럼을 보강해 최종 key 후보를 만든다."""
+
     shared_columns = set(left_df.columns) & set(right_df.columns)
     expanded_columns = [column for column in rule_columns if column in shared_columns]
 
@@ -199,6 +217,8 @@ def select_default_join_type(
     left_dataset: str,
     right_dataset: str,
 ) -> str:
+    """명시 규칙이 없을 때 기본 join type 을 고른다."""
+
     normalized_query = normalize_text(user_input)
 
     if should_exclude_date_from_join(tool_results):
@@ -218,6 +238,8 @@ def select_default_join_type(
 
 
 def plan_merge_strategy(tool_results: List[Dict[str, Any]], frames: List[pd.DataFrame], user_input: str) -> Dict[str, Any]:
+    """여러 테이블을 어떤 순서와 key 로 합칠지 계획을 만든다."""
+
     exclude_date = should_exclude_date_from_join(tool_results)
     requested_dimensions = resolve_requested_dimensions(user_input, frames)
     base_index = 0
@@ -272,6 +294,8 @@ def plan_merge_strategy(tool_results: List[Dict[str, Any]], frames: List[pd.Data
 
 
 def cleanup_duplicate_dimension_columns(merged_df: pd.DataFrame) -> pd.DataFrame:
+    """병합 후 `_x`, `_y` 로 나뉜 차원 컬럼을 다시 하나로 합친다."""
+
     columns_to_drop: List[str] = []
     for column in list(merged_df.columns):
         if not column.endswith("_x"):
@@ -296,6 +320,8 @@ def merge_and_cleanup(
     join_columns: List[str],
     how: str,
 ) -> tuple[pd.DataFrame, str]:
+    """실제 병합을 수행하고, 중복 차원 컬럼을 정리한다."""
+
     cardinality = classify_join_cardinality(merged_df, next_df, join_columns)
     validate_map = {
         "one_to_one": "one_to_one",
@@ -313,6 +339,15 @@ def merge_and_cleanup(
 
 
 def build_analysis_base_table(tool_results: List[Dict[str, Any]], user_input: str) -> Dict[str, Any]:
+    """분석용 기준 테이블을 만든다.
+
+    이 함수는 다중 데이터셋 분석의 핵심이다.
+    1. 각 결과를 DataFrame 으로 바꾸고
+    2. 차원/지표 컬럼을 구분하고
+    3. 병합 계획을 세운 뒤
+    4. 안전하지 않은 N:M 병합은 막는다
+    """
+
     prepared_frames: List[pd.DataFrame] = []
     source_names: List[str] = []
     suffix_metrics = should_suffix_metrics(tool_results)
@@ -419,6 +454,8 @@ def build_analysis_base_table(tool_results: List[Dict[str, Any]], user_input: st
 
 
 def build_multi_dataset_overview(tool_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """다중 조회 결과를 간단한 요약 테이블로 바꾼다."""
+
     overview_rows = []
     for result in tool_results:
         overview_rows.append(

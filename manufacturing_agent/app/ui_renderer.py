@@ -1,4 +1,4 @@
-"""Streamlit rendering helpers for chat results and session state."""
+"""채팅 결과와 세션 상태를 렌더링하는 Streamlit 보조 함수."""
 
 from typing import Any, Dict, List, MutableMapping, Set
 

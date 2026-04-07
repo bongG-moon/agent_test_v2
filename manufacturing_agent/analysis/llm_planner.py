@@ -1,4 +1,4 @@
-"""LLM prompt builder for safe pandas follow-up analysis."""
+"""안전한 pandas 후속 분석 코드를 만들기 위한 LLM 프롬프트 빌더."""
 
 import json
 from typing import Any, Dict, List, Tuple
@@ -24,7 +24,7 @@ def _get_llm_for_task(task: str):
 
 
 def build_dataset_specific_hints(data: List[Dict[str, Any]], query_text: str) -> str:
-    """Add compact column-aware hints so generated code is more reliable."""
+    """현재 컬럼에 맞는 짧은 힌트를 추가해 생성 코드의 안정성을 높인다."""
 
     if not data:
         return ""

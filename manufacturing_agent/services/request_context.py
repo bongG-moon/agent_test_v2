@@ -1,8 +1,9 @@
-"""Shared request and result helpers used across graph nodes.
+"""그래프 노드들이 공통으로 쓰는 요청/결과 보조 함수 모음.
 
-This module holds small, reusable functions that explain the current request
-or normalize retrieval/analysis results. Keeping them here prevents the graph
-file from becoming a giant utility dump.
+이 파일의 목적은 다음 두 가지다.
+
+1. 현재 질문과 이전 결과를 해석할 때 반복되는 작은 로직을 모아 둔다.
+2. 그래프 노드 파일이 너무 커지지 않도록, 맥락 관련 유틸리티를 분리한다.
 """
 
 import json
@@ -60,7 +61,11 @@ POST_PROCESSING_KEYWORDS = [
 
 
 def get_llm_for_task(task: str, temperature: float = 0.0):
-    """Return an LLM client while staying compatible with simple monkeypatches."""
+    """모델 생성 함수를 안전하게 감싼다.
+
+    테스트에서는 `get_llm` 이 단순 monkeypatch 로 바뀌는 경우가 많아서
+    인자 시그니처가 조금 달라도 동작하도록 방어적으로 작성했다.
+    """
 
     try:
         return get_llm(task=task, temperature=temperature)
@@ -72,6 +77,8 @@ def get_llm_for_task(task: str, temperature: float = 0.0):
 
 
 def build_recent_chat_text(chat_history: List[Dict[str, str]], max_messages: int = 6) -> str:
+    """최근 대화를 사람이 읽기 쉬운 텍스트로 압축한다."""
+
     if not chat_history:
         return "(최근 대화 없음)"
 
@@ -84,6 +91,8 @@ def build_recent_chat_text(chat_history: List[Dict[str, str]], max_messages: int
 
 
 def get_current_table_columns(current_data: Dict[str, Any] | None) -> List[str]:
+    """현재 결과 테이블에 어떤 컬럼이 있는지 모아 반환한다."""
+
     if not isinstance(current_data, dict):
         return []
 
@@ -99,18 +108,29 @@ def get_current_table_columns(current_data: Dict[str, Any] | None) -> List[str]:
 
 
 def has_current_data(current_data: Dict[str, Any] | None) -> bool:
+    """현재 테이블이 실제로 존재하는지 빠르게 확인한다."""
+
     return bool(isinstance(current_data, dict) and isinstance(current_data.get("data"), list) and current_data.get("data"))
 
 
 def raw_dataset_key(dataset_key: str) -> str:
+    """`production__today` 같은 키에서 원본 데이터셋 키만 꺼낸다."""
+
     return str(dataset_key or "").split("__", 1)[0]
 
 
 def collect_applied_params(extracted_params: Dict[str, Any]) -> Dict[str, Any]:
+    """파라미터 추출 결과 중 실제로 값이 있는 필드만 남긴다."""
+
     return {field: extracted_params.get(field) for field in APPLIED_PARAM_FIELDS if extracted_params.get(field)}
 
 
 def attach_result_metadata(result: Dict[str, Any], extracted_params: Dict[str, Any], original_tool_name: str) -> Dict[str, Any]:
+    """결과 딕셔너리에 추적용 메타데이터를 붙인다.
+
+    이후 follow-up 질문에서 "이 결과가 어떤 조건으로 조회됐는지" 판단할 때 사용한다.
+    """
+
     if result.get("success"):
         result["original_tool_name"] = original_tool_name
         result["applied_params"] = collect_applied_params(extracted_params)
@@ -122,6 +142,8 @@ def attach_result_metadata(result: Dict[str, Any], extracted_params: Dict[str, A
 
 
 def collect_current_source_dataset_keys(current_data: Dict[str, Any] | None) -> List[str]:
+    """현재 결과가 어떤 원천 데이터셋에서 왔는지 추적한다."""
+
     if not isinstance(current_data, dict):
         return []
 
@@ -146,6 +168,11 @@ def collect_current_source_dataset_keys(current_data: Dict[str, Any] | None) -> 
 
 
 def collect_requested_dataset_keys(user_input: str) -> List[str]:
+    """질문이 필요로 하는 데이터셋 후보를 모은다.
+
+    기본 키워드 매칭 결과에 더해, 사용자 정의 분석 규칙이 요구하는 데이터셋도 같이 포함한다.
+    """
+
     dataset_keys = [key for key in pick_retrieval_tools(user_input) if key in DATASET_REGISTRY]
     for rule in match_registered_analysis_rules(user_input):
         for dataset_key in rule.get("required_datasets", []):
@@ -155,12 +182,16 @@ def collect_requested_dataset_keys(user_input: str) -> List[str]:
 
 
 def normalize_filter_value(value: Any) -> Any:
+    """필터 비교를 쉽게 하기 위해 값을 문자열/정렬 리스트 형태로 맞춘다."""
+
     if isinstance(value, list):
         return sorted(str(item) for item in value)
     return str(value) if value not in (None, "", []) else None
 
 
 def user_explicitly_mentions_filter(field_name: str, user_input: str) -> bool:
+    """사용자가 특정 필터를 직접 언급했는지 확인한다."""
+
     normalized = normalize_text(user_input)
     keyword_map = {
         "date": ["오늘", "어제", "date", "일자", "날짜"],
@@ -180,6 +211,8 @@ def user_explicitly_mentions_filter(field_name: str, user_input: str) -> bool:
 
 
 def has_explicit_filter_change(user_input: str, extracted_params: Dict[str, Any], current_data: Dict[str, Any] | None) -> bool:
+    """현재 결과와 비교했을 때 사용자가 새 필터를 요구했는지 판단한다."""
+
     current_filters = {}
     if isinstance(current_data, dict):
         current_filters = current_data.get("applied_params", {}) or {}
@@ -197,6 +230,8 @@ def has_explicit_filter_change(user_input: str, extracted_params: Dict[str, Any]
 
 
 def build_current_data_profile(current_data: Dict[str, Any] | None) -> Dict[str, Any]:
+    """현재 테이블 상태를 LLM 검토에 넘기기 좋은 작은 요약으로 만든다."""
+
     return {
         "tool_name": str((current_data or {}).get("tool_name", "")),
         "source_dataset_keys": collect_current_source_dataset_keys(current_data),
@@ -206,6 +241,8 @@ def build_current_data_profile(current_data: Dict[str, Any] | None) -> Dict[str,
 
 
 def attach_source_dataset_metadata(result: Dict[str, Any], source_results: List[Dict[str, Any]]) -> None:
+    """최종 결과에 원천 데이터셋 목록을 붙인다."""
+
     result["source_dataset_keys"] = list(
         dict.fromkeys(
             raw_dataset_key(str(item.get("dataset_key", "")))
@@ -221,6 +258,12 @@ def review_query_mode_with_llm(
     extracted_params: Dict[str, Any],
     requested_dataset_keys: List[str],
 ) -> QueryMode:
+    """규칙만으로 애매할 때 LLM에게 마지막 판단을 맡긴다.
+
+    이미 현재 데이터가 충분해 보일 때만 호출한다.
+    즉, 명확하게 새 조회가 필요한 경우에는 이 함수까지 오지 않는다.
+    """
+
     if not has_current_data(current_data):
         return "retrieval"
 
@@ -265,6 +308,8 @@ Return only:
 
 
 def build_unknown_retrieval_message() -> str:
+    """어떤 데이터셋을 봐야 할지 찾지 못했을 때의 안내 문구를 만든다."""
+
     available_labels = list_available_dataset_labels()
     if not available_labels:
         return "질문과 맞는 데이터셋을 바로 찾지 못했습니다. 어떤 데이터를 보고 싶은지 조금 더 구체적으로 말씀해 주세요."
@@ -272,6 +317,8 @@ def build_unknown_retrieval_message() -> str:
 
 
 def extract_text_from_response(content: Any) -> str:
+    """LLM 응답이 문자열/리스트 어느 형태든 텍스트로 평탄화한다."""
+
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -286,6 +333,8 @@ def extract_text_from_response(content: Any) -> str:
 
 
 def parse_json_block(text: str) -> Dict[str, Any]:
+    """마크다운 코드블록이 섞여 있어도 JSON 객체만 꺼내 파싱한다."""
+
     cleaned = str(text or "").strip()
     if "```json" in cleaned:
         cleaned = cleaned.split("```json", 1)[1].split("```", 1)[0]
@@ -304,6 +353,8 @@ def parse_json_block(text: str) -> Dict[str, Any]:
 
 
 def build_dataset_catalog_text() -> str:
+    """등록된 데이터셋과 키워드 목록을 LLM 프롬프트용 텍스트로 만든다."""
+
     lines: List[str] = []
     keyword_map = get_dataset_keyword_map()
     for dataset_key, meta in DATASET_REGISTRY.items():
@@ -313,4 +364,6 @@ def build_dataset_catalog_text() -> str:
 
 
 def get_dataset_labels_for_message(dataset_keys: List[str]) -> List[str]:
+    """사용자 안내 메시지에 넣을 표시용 데이터셋 이름을 반환한다."""
+
     return [get_dataset_label(key) for key in dataset_keys]

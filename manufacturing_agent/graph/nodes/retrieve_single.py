@@ -1,13 +1,15 @@
-"""Node for the common single-dataset retrieval path."""
+"""단일 데이터셋 조회를 수행하는 노드."""
 
 from ...graph.state import AgentGraphState
 from ...services.request_context import attach_result_metadata
 from ...services.response_service import generate_response
-from ...services.runtime_service import mark_primary_result, run_analysis_after_retrieval
 from ...services.retrieval_planner import execute_retrieval_jobs
+from ...services.runtime_service import mark_primary_result, run_analysis_after_retrieval
 
 
 def single_retrieval_node(state: AgentGraphState) -> AgentGraphState:
+    """조회 job 하나를 실행하고, 필요하면 후처리 분석까지 이어간다."""
+
     extracted_params = state.get("extracted_params", {})
     chat_history = state.get("chat_history", [])
     current_data = state.get("current_data")

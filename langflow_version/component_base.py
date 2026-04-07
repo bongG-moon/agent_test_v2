@@ -1,9 +1,8 @@
-"""Small compatibility layer for Langflow custom components.
+"""Langflow 커스텀 컴포넌트를 위한 작은 호환 레이어.
 
-This module lets the repository import and test custom component files even
-when Langflow is not installed locally. In a real Langflow environment the
-official classes are imported first. Outside Langflow we provide lightweight
-fallback objects with the same attribute names used by this project.
+이 저장소의 테스트는 Langflow 가 설치되지 않은 환경에서도 돌아가야 한다.
+실제 Langflow 환경에서는 공식 클래스를 우선 사용하고,
+로컬 테스트 환경에서는 이 프로젝트가 쓰는 최소한의 속성만 가진 대체 객체를 제공한다.
 """
 
 from __future__ import annotations
@@ -72,7 +71,7 @@ except Exception:  # pragma: no cover - fallback branch depends on environment
 
 
 def make_data(payload: Dict[str, Any], text: str | None = None):
-    """Return a Langflow Data-like object in both real and local test modes."""
+    """실환경과 로컬 테스트 환경 모두에서 Data 비슷한 객체를 돌려준다."""
 
     try:
         return Data(data=payload, text=text)
@@ -84,7 +83,7 @@ def make_data(payload: Dict[str, Any], text: str | None = None):
 
 
 def read_data_payload(value: Any) -> Dict[str, Any]:
-    """Normalize Langflow Data, dicts, or None into a plain dictionary."""
+    """Langflow Data, 일반 dict, None 값을 모두 일반 딕셔너리로 맞춘다."""
 
     if value is None:
         return {}

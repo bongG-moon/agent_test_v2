@@ -1,4 +1,4 @@
-"""Decide whether we should fetch new raw data or reuse the current table."""
+"""질문을 새 조회로 처리할지, 현재 테이블 후처리로 처리할지 판단하는 서비스."""
 
 import re
 from typing import Any, Dict
@@ -17,6 +17,12 @@ from .request_context import (
 
 
 def has_explicit_date_reference(query_text: str) -> bool:
+    """질문 안에 날짜가 직접 언급됐는지 확인한다.
+
+    날짜가 명시되면 기존 테이블을 재활용하기보다
+    새 조회가 필요할 가능성이 높기 때문에 라우팅 판단에 사용한다.
+    """
+
     normalized = normalize_text(query_text)
     if any(token in normalized for token in ["오늘", "어제", "today", "yesterday"]):
         return True
@@ -24,6 +30,8 @@ def has_explicit_date_reference(query_text: str) -> bool:
 
 
 def mentions_grouping_expression(query_text: str) -> bool:
+    """`MODE별`, `공정 기준`, `by line` 같은 그룹핑 의도를 찾는다."""
+
     return bool(re.search(r"([\w/\-가-힣]+)\s*(by|기준|별)", str(query_text or ""), flags=re.IGNORECASE))
 
 
@@ -32,6 +40,12 @@ def needs_post_processing(
     extracted_params: Dict[str, Any] | None = None,
     retrieval_plan: Dict[str, Any] | None = None,
 ) -> bool:
+    """조회 후에 pandas 후처리가 필요한 질문인지 판단한다.
+
+    그룹핑, 순위, 비교, 사용자 정의 계산 규칙 같은 요청은
+    단순 조회만으로 답할 수 없으므로 후처리가 필요하다.
+    """
+
     from ..domain.registry import match_registered_analysis_rules
 
     extracted_params = extracted_params or {}
@@ -49,6 +63,8 @@ def needs_post_processing(
 
 
 def looks_like_new_data_request(query_text: str) -> bool:
+    """사용자 의도가 새 원천 데이터를 가져오는 쪽에 가까운지 판단한다."""
+
     normalized = normalize_text(query_text)
     retrieval_keys = pick_retrieval_tools(query_text)
     retrieval_tokens = [
@@ -76,6 +92,13 @@ def looks_like_new_data_request(query_text: str) -> bool:
 
 
 def prune_followup_params(user_input: str, extracted_params: Dict[str, Any]) -> Dict[str, Any]:
+    """후속 분석에서는 꼭 필요한 필터만 남기고 나머지는 걷어낸다.
+
+    예를 들어 사용자가 단순히 `MODE별로 다시 보여줘` 라고 말하면,
+    새 필터를 바꾸려는 게 아니라 현재 범위를 가공하려는 뜻이므로
+    공정/제품 필터를 다시 강하게 적용하지 않도록 정리한다.
+    """
+
     normalized = normalize_text(user_input)
     cleaned = dict(extracted_params or {})
     filter_fields = [
@@ -119,7 +142,14 @@ def choose_query_mode(
     current_data: Dict[str, Any] | None,
     extracted_params: Dict[str, Any],
 ) -> QueryMode:
-    """Choose between fresh retrieval and follow-up transformation."""
+    """질문을 `retrieval` 과 `followup_transform` 중 어디로 보낼지 결정한다.
+
+    판단 순서는 단순하다.
+    1. 현재 데이터가 없으면 무조건 조회
+    2. 필요한 데이터셋이 현재 결과에 없으면 조회
+    3. 필터가 바뀌었으면 조회
+    4. 그 외에는 현재 테이블 후처리 가능 여부를 본다
+    """
 
     if not has_current_data(current_data):
         return "retrieval"

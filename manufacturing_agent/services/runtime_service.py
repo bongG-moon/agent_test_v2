@@ -1,8 +1,8 @@
-"""High-level workflow helpers used by graph nodes.
+"""그래프 노드가 호출하는 상위 실행 흐름 서비스.
 
-These functions compose lower-level services such as retrieval planning,
-merging, and analysis. The graph nodes call into this module so the graph
-itself stays small and readable.
+이 파일은 여러 하위 서비스들을 묶어서
+"조회 -> 병합 -> 분석 -> 응답" 흐름을 실제로 실행한다.
+그래프 노드는 최대한 얇게 두고, 실제 분기/재시도 로직은 여기서 담당한다.
 """
 
 from typing import Any, Dict, List
@@ -31,6 +31,8 @@ from .retrieval_planner import (
 
 
 def mark_primary_result(tool_results: List[Dict[str, Any]], primary_index: int) -> List[Dict[str, Any]]:
+    """UI 에서 기본으로 펼쳐 보여줄 결과를 표시한다."""
+
     for index, result in enumerate(tool_results):
         result["display_expanded"] = index == primary_index
     return tool_results
@@ -43,6 +45,8 @@ def run_analysis_after_retrieval(
     extracted_params: Dict[str, Any],
     retrieval_plan: Dict[str, Any] | None = None,
 ) -> Dict[str, Any] | None:
+    """단일 조회 후 이어서 후처리 분석이 필요한 경우를 처리한다."""
+
     if not source_results:
         return None
     if not needs_post_processing(user_input, extracted_params, retrieval_plan):
@@ -52,6 +56,7 @@ def run_analysis_after_retrieval(
     if not primary_source.get("success"):
         return None
 
+    # 처음 선택한 데이터셋만으로는 계산이 부족할 수 있으므로 한 번 더 검토한다.
     if retrieval_plan and retrieval_plan.get("needs_post_processing") and len(source_results) == 1:
         sufficiency_review = review_retrieval_sufficiency(user_input, source_results, retrieval_plan)
         if not sufficiency_review.get("is_sufficient", True):
@@ -74,6 +79,7 @@ def run_analysis_after_retrieval(
     )
     analysis_result = attach_result_metadata(analysis_result, extracted_params, primary_source.get("tool_name", ""))
 
+    # 분석 실패 원인이 "데이터셋 선택 부족" 이라면 조회 계획을 다시 세운다.
     if should_retry_retrieval_plan(retrieval_plan, source_results, analysis_result):
         retry_plan = plan_retrieval_request(
             user_input,
@@ -132,6 +138,8 @@ def run_multi_retrieval_jobs(
     jobs: List[Dict[str, Any]],
     retrieval_plan: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
+    """여러 데이터셋 조회 job 을 실행하고, 필요하면 병합 후 분석까지 진행한다."""
+
     source_results = execute_retrieval_jobs(jobs)
     for result, job in zip(source_results, jobs):
         attach_result_metadata(result, job["params"], result.get("tool_name", ""))
@@ -235,6 +243,8 @@ def run_followup_analysis(
     current_data: Dict[str, Any],
     extracted_params: Dict[str, Any],
 ) -> Dict[str, Any]:
+    """현재 테이블을 다시 분석하는 follow-up 흐름을 실행한다."""
+
     cleaned_params = prune_followup_params(user_input, extracted_params)
     result = execute_analysis_query(
         query_text=user_input,
@@ -264,6 +274,12 @@ def run_retrieval(
     current_data: Dict[str, Any] | None,
     extracted_params: Dict[str, Any],
 ) -> Dict[str, Any]:
+    """일반 조회 흐름의 메인 진입점.
+
+    이 함수 하나에서 조회 계획 수립, 날짜 누락 검사,
+    단일/다중 조회 분기, 후처리 연결까지 담당한다.
+    """
+
     retrieval_plan = plan_retrieval_request(user_input, chat_history, current_data)
     retrieval_keys = retrieval_plan.get("dataset_keys") or pick_retrieval_tools(user_input)
     if not retrieval_keys:

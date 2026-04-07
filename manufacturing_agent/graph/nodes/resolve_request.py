@@ -1,4 +1,4 @@
-"""Node that extracts filters and chooses the first route."""
+"""질문을 해석하고 첫 분기 결정을 준비하는 노드."""
 
 from ...graph.state import AgentGraphState
 from ...services.parameter_service import resolve_required_params
@@ -7,6 +7,8 @@ from ...services.request_context import build_recent_chat_text, get_current_tabl
 
 
 def resolve_request_node(state: AgentGraphState) -> AgentGraphState:
+    """현재 질문에서 필터를 추출하고 query_mode 를 결정한다."""
+
     chat_history = state.get("chat_history", [])
     context = state.get("context", {})
     current_data = state.get("current_data")

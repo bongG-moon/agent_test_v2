@@ -1,4 +1,4 @@
-"""Run follow-up analysis against an already retrieved table."""
+"""이미 조회한 테이블을 대상으로 후속 분석을 실행한다."""
 
 from typing import Any, Dict, List
 

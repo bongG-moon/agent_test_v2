@@ -1,4 +1,4 @@
-"""Node that turns a request into executable retrieval jobs."""
+"""조회 계획을 실제 실행 가능한 job 목록으로 바꾸는 노드."""
 
 from ...data.retrieval import dataset_requires_date, pick_retrieval_tools
 from ...graph.state import AgentGraphState
@@ -7,6 +7,8 @@ from ...services.retrieval_planner import build_missing_date_message, build_retr
 
 
 def plan_retrieval_node(state: AgentGraphState) -> AgentGraphState:
+    """질문을 바탕으로 retrieval plan 과 retrieval job 을 만든다."""
+
     user_input = state["user_input"]
     current_data = state.get("current_data")
     extracted_params = state.get("extracted_params", {})

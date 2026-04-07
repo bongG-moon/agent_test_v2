@@ -1,4 +1,4 @@
-"""Langflow-oriented implementation layer for the manufacturing agent."""
+"""제조 에이전트의 Langflow 전용 구현 레이어."""
 
 from .workflow import run_langflow_workflow
 

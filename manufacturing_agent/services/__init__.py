@@ -1,1 +1,1 @@
-"""Pure service functions used by graph nodes and adapters."""
+"""그래프 노드와 외부 래퍼가 공통으로 사용하는 서비스 함수 모음."""

@@ -1,10 +1,12 @@
-"""Node that transforms the current table without fetching new raw data."""
+"""현재 테이블을 재사용하는 후속 분석 노드."""
 
 from ...graph.state import AgentGraphState
 from ...services.runtime_service import run_followup_analysis
 
 
 def followup_analysis_node(state: AgentGraphState) -> AgentGraphState:
+    """현재 데이터가 있으면 후속 분석을 수행하고, 없으면 안내 메시지를 반환한다."""
+
     current_data = state.get("current_data")
     if not isinstance(current_data, dict):
         return {
