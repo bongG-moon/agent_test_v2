@@ -41,6 +41,44 @@ EXPLICIT_DATASET_KEYWORDS = {
 }
 
 
+def _normalize_merge_hints(raw_hints: Any) -> Dict[str, Any]:
+    """LLM이 준 merge 힌트를 실행기가 바로 쓸 수 있는 형태로 정리한다."""
+
+    if not isinstance(raw_hints, dict):
+        return {}
+
+    group_dimensions: List[str] = []
+    for column in raw_hints.get("group_dimensions", []) or []:
+        column_name = str(column).strip()
+        if column_name and column_name not in group_dimensions:
+            group_dimensions.append(column_name)
+
+    dataset_metrics: Dict[str, List[str]] = {}
+    for dataset_key, columns in (raw_hints.get("dataset_metrics", {}) or {}).items():
+        normalized_dataset_key = normalize_text(dataset_key)
+        if normalized_dataset_key not in DATASET_REGISTRY:
+            continue
+        metric_list: List[str] = []
+        for column in columns or []:
+            column_name = str(column).strip()
+            if column_name and column_name not in metric_list:
+                metric_list.append(column_name)
+        if metric_list:
+            dataset_metrics[normalized_dataset_key] = metric_list
+
+    aggregation = str(raw_hints.get("aggregation", "sum")).strip().lower() or "sum"
+    if aggregation not in {"sum", "mean", "max", "min", "count"}:
+        aggregation = "sum"
+
+    return {
+        "pre_aggregate_before_join": bool(raw_hints.get("pre_aggregate_before_join")),
+        "group_dimensions": group_dimensions,
+        "dataset_metrics": dataset_metrics,
+        "aggregation": aggregation,
+        "reason": str(raw_hints.get("reason", "")).strip(),
+    }
+
+
 def _dedupe_dataset_keys(dataset_keys: List[str]) -> List[str]:
     """등록된 dataset key만 남기면서 순서를 유지해 중복을 제거한다."""
 
@@ -132,6 +170,8 @@ Rules:
 - Choose only dataset keys from the registered dataset list.
 - If the user asks for a derived metric or comparison, include every base dataset needed for that final answer.
 - Set `needs_post_processing` to true when the final answer requires grouping, joining, comparing, ranking, or creating a derived column after retrieval.
+- If the question needs a multi-dataset ratio or comparison, decide whether each dataset should be aggregated before join.
+- Use `merge_hints` to describe only execution hints, not final prose.
 - Do not invent dataset keys.
 
 Registered dataset list:
@@ -154,7 +194,16 @@ Return only:
 {{
   "dataset_keys": ["production"],
   "needs_post_processing": false,
-  "analysis_goal": "short description"
+  "analysis_goal": "short description",
+  "merge_hints": {{
+    "pre_aggregate_before_join": false,
+    "group_dimensions": [],
+    "dataset_metrics": {{
+      "production": ["production"]
+    }},
+    "aggregation": "sum",
+    "reason": "short explanation"
+  }}
 }}"""
 
     try:
@@ -211,6 +260,7 @@ Return only:
         else bool(parsed.get("needs_post_processing", False) or matched_rules or derived_dataset_keys),
         "analysis_goal": str(parsed.get("analysis_goal", "")).strip()
         or ", ".join(str(rule.get("display_name") or rule.get("name")) for rule in matched_rules[:2]),
+        "merge_hints": _normalize_merge_hints(parsed.get("merge_hints")),
     }
 
 

@@ -191,7 +191,7 @@ def run_multi_retrieval_jobs(
     current_datasets = build_current_datasets(source_results)
 
     if needs_post_processing(user_input, jobs[0]["params"] if jobs else {}, retrieval_plan):
-        analysis_base = build_analysis_base_table(source_results, user_input)
+        analysis_base = build_analysis_base_table(source_results, user_input, retrieval_plan=retrieval_plan)
         if not analysis_base.get("success"):
             overview_result = build_multi_dataset_overview(source_results)
             overview_result = attach_result_metadata(

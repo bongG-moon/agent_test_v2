@@ -248,8 +248,15 @@ def test_plan_retrieval_request_uses_target_for_achievement_rate_synonym(monkeyp
         monkeypatch,
         {
             "dataset_keys": ["production"],
-            "needs_post_processing": False,
-            "analysis_goal": "single dataset only",
+            "needs_post_processing": True,
+            "analysis_goal": "achievement by mode",
+            "merge_hints": {
+                "pre_aggregate_before_join": True,
+                "group_dimensions": ["MODE"],
+                "dataset_metrics": {"production": ["production"], "target": ["target"]},
+                "aggregation": "sum",
+                "reason": "grouped ratio question",
+            },
         },
     )
 
@@ -260,6 +267,8 @@ def test_plan_retrieval_request_uses_target_for_achievement_rate_synonym(monkeyp
     )
 
     assert set(plan["dataset_keys"]) == {"production", "target"}
+    assert plan["merge_hints"]["pre_aggregate_before_join"] is True
+    assert plan["merge_hints"]["group_dimensions"] == ["MODE"]
 
 
 def test_normalize_dataset_result_columns_maps_external_production_column():
@@ -327,13 +336,22 @@ def test_build_analysis_base_table_preaggregates_before_ratio_join():
 
     analysis_base = build_analysis_base_table(
         tool_results,
-        "오늘 WB공정에서 생산 달성율을 MODE별로 알려줘",
+        "임의 질문",
+        retrieval_plan={
+            "merge_hints": {
+                "pre_aggregate_before_join": True,
+                "group_dimensions": ["MODE"],
+                "dataset_metrics": {"production": ["production"], "target": ["target"]},
+                "aggregation": "sum",
+                "reason": "group by MODE before join",
+            }
+        },
     )
 
     assert analysis_base["success"] is True
     assert analysis_base["join_columns"] == ["MODE"]
     assert analysis_base["data"] == [{"MODE": "DDR5", "production": 220, "target": 300}]
-    assert any("선집계" in note for note in analysis_base["merge_notes"])
+    assert any("LLM 힌트" in note for note in analysis_base["merge_notes"])
 
 
 def test_plan_retrieval_request_combines_achievement_and_saturation(monkeypatch):
