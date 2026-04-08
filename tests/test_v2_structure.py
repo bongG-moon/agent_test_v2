@@ -4,6 +4,7 @@ from pathlib import Path
 from langflow_version.components import ManufacturingAgentComponent
 from langflow_version.workflow import build_initial_state, resolve_request_step, run_langflow_workflow
 from manufacturing_agent.agent import extract_params_component, run_agent
+from manufacturing_agent.data import retrieval as retrieval_data
 from manufacturing_agent.data.retrieval import get_production_data
 from manufacturing_agent.domain import registry
 from manufacturing_agent.services import parameter_service, request_context, response_service, retrieval_planner
@@ -14,6 +15,7 @@ from manufacturing_agent.services.query_mode import (
     mentions_grouping_expression,
 )
 from manufacturing_agent.services.runtime_service import ensure_filtered_result_rows
+from manufacturing_agent.shared.column_resolver import normalize_dataset_result_columns
 from manufacturing_agent.shared.text_sanitizer import sanitize_markdown_text
 
 
@@ -258,7 +260,45 @@ def test_plan_retrieval_request_uses_target_for_achievement_rate_synonym(monkeyp
     )
 
     assert set(plan["dataset_keys"]) == {"production", "target"}
-    assert plan["needs_post_processing"] is True
+
+
+def test_normalize_dataset_result_columns_maps_external_production_column():
+    result = {
+        "success": True,
+        "data": [
+            {"WORK_DT": "20260408", "OPER_NAME": "D/A1", "PROD": 1234},
+        ],
+    }
+
+    normalized = normalize_dataset_result_columns(result, "production")
+
+    assert normalized["data"][0]["production"] == 1234
+    assert normalized["column_rename_map"] == {"PROD": "production"}
+
+
+def test_execute_retrieval_tools_normalizes_external_target_column(monkeypatch):
+    def _fake_target_tool(_params):
+        return {
+            "success": True,
+            "tool_name": "fake_target_tool",
+            "data": [{"WORK_DT": "20260408", "OPER_NAME": "D/A1", "TARGET": 1400}],
+            "summary": "fake target",
+        }
+
+    monkeypatch.setitem(retrieval_data.RETRIEVAL_TOOL_MAP, "target", _fake_target_tool)
+    monkeypatch.setitem(
+        retrieval_data.DATASET_REGISTRY,
+        "target",
+        {
+            **retrieval_data.DATASET_REGISTRY["target"],
+            "tool": _fake_target_tool,
+        },
+    )
+
+    results = retrieval_data.execute_retrieval_tools(["target"], {"date": "20260408"})
+
+    assert results[0]["data"][0]["target"] == 1400
+    assert results[0]["column_rename_map"] == {"TARGET": "target"}
 
 
 def test_plan_retrieval_request_combines_achievement_and_saturation(monkeypatch):

@@ -689,6 +689,34 @@ DATASET_METADATA = {
 }
 
 
+DATASET_COLUMN_ALIAS_SPECS = {
+    "production": {
+        "production": ["production", "prod", "prod_qty", "actual", "actual_qty", "생산", "생산량", "실적"],
+    },
+    "target": {
+        "target": ["target", "plan", "plan_qty", "goal", "goal_qty", "목표", "목표량", "계획"],
+    },
+    "defect": {
+        "불량수량": ["불량수량", "defect_qty", "defect_count", "ng_qty", "ng_count"],
+        "defect_rate": ["defect_rate", "defect ratio", "ng_rate", "불량률"],
+    },
+    "equipment": {
+        "가동률": ["가동률", "utilization", "util_rate", "util", "稼動率"],
+    },
+    "wip": {
+        "재공수량": ["재공수량", "wip", "wip_qty", "queue_qty", "in_process_qty"],
+    },
+    "yield": {
+        "yield_rate": ["yield_rate", "yield", "pass_rate", "수율"],
+        "pass_qty": ["pass_qty", "pass", "good_qty", "합격수량", "양품수량"],
+        "tested_qty": ["tested_qty", "tested", "input_qty", "검사수량", "투입수량"],
+    },
+    "hold": {
+        "hold_qty": ["hold_qty", "hold", "hold_count", "보류수량", "홀드수량"],
+    },
+}
+
+
 def build_domain_knowledge_prompt() -> str:
     lines: List[str] = []
     lines.append("=" * 50)

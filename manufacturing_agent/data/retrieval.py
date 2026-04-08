@@ -10,6 +10,7 @@ from ..domain.knowledge import (
     SPECIAL_PRODUCT_ALIASES,
 )
 from ..domain.registry import get_dataset_keyword_map
+from ..shared.column_resolver import normalize_dataset_result_columns
 from ..shared.filter_utils import normalize_text
 from ..shared.number_format import format_summary_quantity
 
@@ -707,6 +708,7 @@ def execute_retrieval_tools(dataset_keys: List[str], params: Dict[str, Any]) -> 
 
         result = dataset_meta["tool"](params)
         if isinstance(result, dict):
+            result = normalize_dataset_result_columns(result, dataset_key)
             result["dataset_key"] = dataset_key
             result["dataset_label"] = dataset_meta["label"]
         results.append(result)
