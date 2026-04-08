@@ -102,6 +102,159 @@ def resolve_requested_dimensions(user_input: str, frames: List[pd.DataFrame]) ->
     return find_requested_dimensions(user_input, all_columns)
 
 
+def resolve_explicit_group_dimensions(user_input: str, frames: List[pd.DataFrame]) -> List[str]:
+    """질문에서 `MODE별`, `공정 기준`, `by MODE` 같은 그룹화 차원만 따로 뽑는다."""
+
+    all_columns: List[str] = []
+    for frame in frames:
+        for column in frame.columns:
+            if column not in all_columns:
+                all_columns.append(str(column))
+
+    group_dimensions: List[str] = []
+    patterns = [
+        r"([\w/\-가-힣]+)\s*별",
+        r"([\w/\-가-힣]+)\s*기준",
+        r"\bby\s+([A-Za-z0-9_/\-]+)",
+    ]
+
+    for pattern in patterns:
+        for token in re.findall(pattern, user_input, flags=re.IGNORECASE):
+            for column in find_requested_dimensions(str(token), all_columns):
+                if column not in group_dimensions:
+                    group_dimensions.append(column)
+
+    return group_dimensions
+
+
+def collect_relevant_analysis_rules(user_input: str, prepared_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """현재 조회된 데이터셋 조합에 실제로 적용 가능한 분석 규칙만 고른다."""
+
+    selected_dataset_keys = {
+        raw_dataset_key(result.get("dataset_key", ""))
+        for result in prepared_results
+        if result.get("dataset_key")
+    }
+
+    relevant_rules: List[Dict[str, Any]] = []
+    for rule in match_registered_analysis_rules(user_input):
+        required_datasets = {
+            normalize_text(dataset_key)
+            for dataset_key in rule.get("required_datasets", [])
+            if str(dataset_key).strip()
+        }
+        if len(required_datasets) >= 2 and required_datasets.issubset(selected_dataset_keys):
+            relevant_rules.append(rule)
+    return relevant_rules
+
+
+def pick_grouped_merge_dimensions(
+    user_input: str,
+    requested_dimensions: List[str],
+    relevant_rules: List[Dict[str, Any]],
+    frames: List[pd.DataFrame],
+) -> List[str]:
+    """집계 후 병합이 필요할 때 각 데이터셋에서 공통으로 유지할 차원 컬럼을 고른다."""
+
+    selected_dimensions = resolve_explicit_group_dimensions(user_input, frames) or list(requested_dimensions)
+    if not selected_dimensions:
+        for rule in relevant_rules:
+            for column in rule.get("default_group_by", []):
+                if column not in selected_dimensions:
+                    selected_dimensions.append(column)
+
+    if not selected_dimensions:
+        return []
+
+    common_columns = set(frames[0].columns)
+    for frame in frames[1:]:
+        common_columns &= set(frame.columns)
+
+    return [column for column in selected_dimensions if column in common_columns]
+
+
+def collect_rule_metric_columns(relevant_rules: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+    """분석 규칙에서 dataset별로 꼭 남겨야 하는 metric 컬럼을 모은다."""
+
+    metric_columns_by_dataset: Dict[str, List[str]] = {}
+    for rule in relevant_rules:
+        for source_column in rule.get("source_columns", []):
+            dataset_key = normalize_text(source_column.get("dataset_key", ""))
+            column_name = str(source_column.get("column", "")).strip()
+            if not dataset_key or not column_name:
+                continue
+            dataset_metrics = metric_columns_by_dataset.setdefault(dataset_key, [])
+            if column_name not in dataset_metrics:
+                dataset_metrics.append(column_name)
+    return metric_columns_by_dataset
+
+
+def aggregate_frame_for_grouped_merge(
+    frame: pd.DataFrame,
+    dataset_key: str,
+    group_dimensions: List[str],
+    metric_columns_by_dataset: Dict[str, List[str]],
+) -> pd.DataFrame:
+    """원본 행을 먼저 집계해서 안전한 1:1 수준의 병합용 테이블로 바꾼다."""
+
+    metric_columns = [
+        column
+        for column in metric_columns_by_dataset.get(dataset_key, [])
+        if column in frame.columns
+    ]
+    if not metric_columns:
+        return frame
+
+    usable_group_dimensions = [column for column in group_dimensions if column in frame.columns]
+    if not usable_group_dimensions:
+        aggregated_values = {
+            column: [frame[column].sum()]
+            for column in metric_columns
+        }
+        return pd.DataFrame(aggregated_values)
+
+    aggregate_map = {column: "sum" for column in metric_columns}
+    return frame.groupby(usable_group_dimensions, as_index=False).agg(aggregate_map)
+
+
+def prepare_grouped_merge_frames(
+    user_input: str,
+    prepared_results: List[Dict[str, Any]],
+    frames: List[pd.DataFrame],
+    requested_dimensions: List[str],
+) -> tuple[List[pd.DataFrame], List[str], List[str]]:
+    """규칙 기반 파생 지표 질문이면 데이터셋별 선집계 후 병합하도록 준비한다."""
+
+    relevant_rules = collect_relevant_analysis_rules(user_input, prepared_results)
+    if not relevant_rules:
+        return frames, requested_dimensions, []
+
+    group_dimensions = pick_grouped_merge_dimensions(user_input, requested_dimensions, relevant_rules, frames)
+    if not group_dimensions:
+        return frames, requested_dimensions, []
+
+    metric_columns_by_dataset = collect_rule_metric_columns(relevant_rules)
+    aggregated_frames: List[pd.DataFrame] = []
+    merge_notes: List[str] = []
+
+    for frame, result in zip(frames, prepared_results):
+        dataset_key = raw_dataset_key(result.get("dataset_key", ""))
+        aggregated_frame = aggregate_frame_for_grouped_merge(
+            frame,
+            dataset_key,
+            group_dimensions,
+            metric_columns_by_dataset,
+        )
+        aggregated_frames.append(aggregated_frame)
+
+        if aggregated_frame is not frame:
+            merge_notes.append(
+                f"{dataset_key} 데이터는 병합 전에 {', '.join(group_dimensions)} 기준으로 선집계했습니다."
+            )
+
+    return aggregated_frames, group_dimensions, merge_notes
+
+
 def pick_join_columns(
     left_df: pd.DataFrame,
     right_df: pd.DataFrame,
@@ -392,6 +545,14 @@ def build_analysis_base_table(tool_results: List[Dict[str, Any]], user_input: st
             "data": [],
         }
 
+    requested_dimensions = resolve_requested_dimensions(user_input, prepared_frames)
+    prepared_frames, requested_dimensions, pre_aggregation_notes = prepare_grouped_merge_frames(
+        user_input,
+        prepared_results,
+        prepared_frames,
+        requested_dimensions,
+    )
+
     merge_plan = plan_merge_strategy(prepared_results, prepared_frames, user_input)
     if not merge_plan.get("steps"):
         return {
@@ -403,7 +564,7 @@ def build_analysis_base_table(tool_results: List[Dict[str, Any]], user_input: st
 
     merged_df = prepared_frames[merge_plan["base_index"]]
     applied_join_columns: List[str] = []
-    merge_notes: List[str] = []
+    merge_notes: List[str] = list(pre_aggregation_notes)
     exclude_date = should_exclude_date_from_join(prepared_results)
 
     for step in merge_plan["steps"]:
@@ -462,7 +623,7 @@ def build_analysis_base_table(tool_results: List[Dict[str, Any]], user_input: st
         "source_tool_names": source_names,
         "join_columns": applied_join_columns,
         "merge_notes": merge_notes,
-        "requested_dimensions": merge_plan.get("requested_dimensions", []),
+        "requested_dimensions": requested_dimensions or merge_plan.get("requested_dimensions", []),
     }
 
 

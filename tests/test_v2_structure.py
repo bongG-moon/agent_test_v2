@@ -301,6 +301,41 @@ def test_execute_retrieval_tools_normalizes_external_target_column(monkeypatch):
     assert results[0]["column_rename_map"] == {"TARGET": "target"}
 
 
+def test_build_analysis_base_table_preaggregates_before_ratio_join():
+    tool_results = [
+        {
+            "success": True,
+            "dataset_key": "production",
+            "dataset_label": "생산",
+            "tool_name": "get_production_data",
+            "data": [
+                {"WORK_DT": "20260408", "OPER_NAME": "W/B1", "MODE": "DDR5", "DEN": "256G", "TECH": "FC", "production": 100},
+                {"WORK_DT": "20260408", "OPER_NAME": "W/B1", "MODE": "DDR5", "DEN": "512G", "TECH": "FC", "production": 120},
+            ],
+        },
+        {
+            "success": True,
+            "dataset_key": "target",
+            "dataset_label": "목표",
+            "tool_name": "get_target_data",
+            "data": [
+                {"WORK_DT": "20260408", "OPER_NAME": "W/B1", "MODE": "DDR5", "DEN": "256G", "TECH": "FC", "target": 140},
+                {"WORK_DT": "20260408", "OPER_NAME": "W/B1", "MODE": "DDR5", "DEN": "512G", "TECH": "FC", "target": 160},
+            ],
+        },
+    ]
+
+    analysis_base = build_analysis_base_table(
+        tool_results,
+        "오늘 WB공정에서 생산 달성율을 MODE별로 알려줘",
+    )
+
+    assert analysis_base["success"] is True
+    assert analysis_base["join_columns"] == ["MODE"]
+    assert analysis_base["data"] == [{"MODE": "DDR5", "production": 220, "target": 300}]
+    assert any("선집계" in note for note in analysis_base["merge_notes"])
+
+
 def test_plan_retrieval_request_combines_achievement_and_saturation(monkeypatch):
     _stub_retrieval_planner_llm(
         monkeypatch,
