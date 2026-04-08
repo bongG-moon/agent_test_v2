@@ -354,6 +354,53 @@ def test_build_analysis_base_table_preaggregates_before_ratio_join():
     assert any("LLM 힌트" in note for note in analysis_base["merge_notes"])
 
 
+def test_build_analysis_base_table_uses_requested_dimension_when_llm_group_hint_is_missing():
+    tool_results = [
+        {
+            "success": True,
+            "dataset_key": "production",
+            "dataset_label": "생산",
+            "tool_name": "get_production_data",
+            "data": [
+                {"WORK_DT": "20260408", "OPER_NAME": "D/A1", "MODE": "DDR5", "production": 100},
+                {"WORK_DT": "20260408", "OPER_NAME": "D/A2", "MODE": "DDR5", "production": 120},
+            ],
+        },
+        {
+            "success": True,
+            "dataset_key": "target",
+            "dataset_label": "목표",
+            "tool_name": "get_target_data",
+            "data": [
+                {"WORK_DT": "20260408", "OPER_NAME": "D/A1", "MODE": "DDR5", "target": 130},
+                {"WORK_DT": "20260408", "OPER_NAME": "D/A2", "MODE": "DDR5", "target": 150},
+            ],
+        },
+    ]
+
+    analysis_base = build_analysis_base_table(
+        tool_results,
+        "오늘 DA공정에서 DDR5제품의 생산 달성율을 공정별로 알려줘",
+        retrieval_plan={
+            "merge_hints": {
+                "pre_aggregate_before_join": True,
+                "group_dimensions": [],
+                "dataset_metrics": {"production": ["production"], "target": ["target"]},
+                "aggregation": "sum",
+                "reason": "ratio question but group dimension missing",
+            }
+        },
+    )
+
+    assert analysis_base["success"] is True
+    assert analysis_base["join_columns"] == ["OPER_NAME"]
+    assert analysis_base["data"] == [
+        {"OPER_NAME": "D/A1", "production": 100, "target": 130},
+        {"OPER_NAME": "D/A2", "production": 120, "target": 150},
+    ]
+    assert any("보조 힌트" in note for note in analysis_base["merge_notes"])
+
+
 def test_plan_retrieval_request_combines_achievement_and_saturation(monkeypatch):
     _stub_retrieval_planner_llm(
         monkeypatch,

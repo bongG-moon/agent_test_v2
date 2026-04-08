@@ -200,9 +200,25 @@ def prepare_merge_frames_from_hints(
     if not merge_hints:
         return frames, requested_dimensions, []
 
+    common_columns = set(frames[0].columns) if frames else set()
+    for frame in frames[1:]:
+        common_columns &= set(frame.columns)
+
     aggregated_frames: List[pd.DataFrame] = []
     merge_notes: List[str] = []
     group_dimensions = list(merge_hints.get("group_dimensions", []))
+    if not group_dimensions:
+        group_dimensions = [
+            column
+            for column in requested_dimensions
+            if column in common_columns
+        ]
+        if group_dimensions:
+            merge_notes.append(
+                f"LLM이 그룹 차원을 비워 두어 질문에서 해석한 차원({', '.join(group_dimensions)})을 보조 힌트로 사용했습니다."
+            )
+
+    merge_hints = {**merge_hints, "group_dimensions": group_dimensions}
     effective_dimensions = group_dimensions or [MERGE_HINT_KEY]
 
     for frame, result in zip(frames, prepared_results):
