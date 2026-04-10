@@ -61,8 +61,6 @@ def init_session_state() -> None:
         st.session_state.context = empty_context()
     if "engineer_mode" not in st.session_state:
         st.session_state.engineer_mode = False
-    if "queued_user_input" not in st.session_state:
-        st.session_state.queued_user_input = ""
 
 
 def format_display_dataframe(rows: List[Dict[str, Any]]) -> pd.DataFrame:
@@ -136,25 +134,16 @@ def render_context() -> None:
         st.info("Current query context | " + " / ".join(active))
 
 
-def render_question_guide_and_examples(key_prefix: str = "question_guide") -> str:
-    """질문 작성 가이드와 예시 버튼을 함께 보여주고, 선택한 예시 질문을 돌려준다."""
+def render_question_guide() -> None:
+    """질문 작성 가이드와 예시 질문을 텍스트로만 보여준다."""
 
     with st.container(border=True):
         st.markdown("**질문 작성 가이드**")
         st.caption("날짜 + 공정 + 제품/조건 + 보고 싶은 값 + 기준(공정별/MODE별) 순서로 질문하면 가장 안정적입니다.")
         st.markdown("예: `오늘 DA공정에서 DDR5제품의 생산 달성율을 공정별로 알려줘`")
         st.markdown("**예시 질문**")
-
-        selected_question = ""
-        columns = st.columns(len(EXAMPLE_QUESTIONS))
-        for index, question in enumerate(EXAMPLE_QUESTIONS):
-            if columns[index].button(
-                question,
-                key=f"{key_prefix}_{index}",
-                use_container_width=True,
-            ):
-                selected_question = question
-        return selected_question
+        for question in EXAMPLE_QUESTIONS:
+            st.markdown(f"- `{question}`")
 
 
 def _dedupe_questions(questions: List[str]) -> List[str]:
@@ -237,24 +226,16 @@ def build_retry_question_suggestions(user_input: str, response_text: str, failur
     return _dedupe_questions(suggestions)[:3]
 
 
-def render_retry_question_suggestions(user_input: str, response_text: str, key_prefix: str, failure_type: str = "") -> str:
-    """실패 시 다시 시도해볼 질문 버튼을 보여주고 선택한 질문을 돌려준다."""
+def render_retry_question_guidance(user_input: str, response_text: str, failure_type: str = "") -> None:
+    """실패 시 어떤 식으로 다시 질문하면 좋은지 텍스트로 안내한다."""
 
     suggestions = build_retry_question_suggestions(user_input, response_text, failure_type=failure_type)
     if not suggestions:
-        return ""
+        return
 
-    st.warning("다시 물어보기 예시")
-    selected_question = ""
-    columns = st.columns(len(suggestions))
-    for index, question in enumerate(suggestions):
-        if columns[index].button(
-            question,
-            key=f"{key_prefix}_{index}",
-            use_container_width=True,
-        ):
-            selected_question = question
-    return selected_question
+    st.warning("다시 질문할 때는 아래처럼 더 구체적으로 적어보세요.")
+    for question in suggestions:
+        st.markdown(f"- `{question}`")
 
 
 def render_analysis_summary(result: Dict[str, Any], row_count: int) -> None:

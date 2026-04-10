@@ -7,8 +7,8 @@ from manufacturing_agent.app.ui_renderer import (
     has_active_context,
     init_session_state,
     render_context,
-    render_question_guide_and_examples,
-    render_retry_question_suggestions,
+    render_question_guide,
+    render_retry_question_guidance,
     render_tool_results,
     reset_chat_session,
     reset_filter_session,
@@ -26,21 +26,17 @@ def _get_saved_chat_history():
 
 def _render_saved_chat_history() -> None:
     engineer_mode = bool(st.session_state.get("engineer_mode", False))
-    for index, message in enumerate(st.session_state.messages):
+    for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(sanitize_markdown_text(message["content"]))
             if message.get("tool_results"):
                 render_tool_results(message["tool_results"], engineer_mode=engineer_mode)
-            if message.get("retry_suggestions"):
-                selected_retry = render_retry_question_suggestions(
+            if message.get("show_retry_guidance"):
+                render_retry_question_guidance(
                     message.get("source_user_input", ""),
                     message.get("content", ""),
-                    key_prefix=f"saved_retry_{index}",
                     failure_type=message.get("failure_type", ""),
                 )
-                if selected_retry:
-                    st.session_state.queued_user_input = selected_retry
-                    st.rerun()
 
 
 def _run_chat_turn(user_input: str, progress_callback=None):
@@ -125,19 +121,10 @@ def _render_chat_page() -> None:
     _render_reset_controls()
     render_domain_registry_summary_card()
     render_context()
-    selected_example = render_question_guide_and_examples()
-    if selected_example:
-        st.session_state.queued_user_input = selected_example
-        st.rerun()
+    render_question_guide()
     _render_saved_chat_history()
 
-    queued_input = str(st.session_state.get("queued_user_input", "") or "")
-    if queued_input:
-        st.session_state.queued_user_input = ""
-
     user_input = st.chat_input("예: 오늘 DA공정에서 DDR5제품의 생산 달성율을 공정별로 알려줘")
-    if not user_input and queued_input:
-        user_input = queued_input
     if not user_input:
         return
 
@@ -173,15 +160,11 @@ def _render_chat_page() -> None:
             token in response for token in ["찾을 수 없습니다", "병합", "N:M", "날짜", "실패", "없습니다"]
         )
         if should_show_retry:
-            selected_retry = render_retry_question_suggestions(
+            render_retry_question_guidance(
                 user_input,
                 response,
-                key_prefix=f"live_retry_{len(st.session_state.messages)}",
                 failure_type=failure_type,
             )
-            if selected_retry:
-                st.session_state.queued_user_input = selected_retry
-                st.rerun()
         else:
             retry_suggestions = []
 
@@ -192,7 +175,7 @@ def _render_chat_page() -> None:
             "tool_results": tool_results,
             "source_user_input": user_input,
             "failure_type": failure_type,
-            "retry_suggestions": retry_suggestions if should_show_retry else [],
+            "show_retry_guidance": bool(should_show_retry and retry_suggestions),
         }
     )
 
