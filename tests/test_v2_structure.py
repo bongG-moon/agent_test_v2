@@ -3,10 +3,11 @@ from pathlib import Path
 
 from langflow_version.components import ManufacturingAgentComponent
 from langflow_version.workflow import build_initial_state, resolve_request_step, run_langflow_workflow
-from manufacturing_agent.agent import extract_params_component, run_agent
+from manufacturing_agent.agent import extract_params_component, run_agent, run_agent_with_progress
 from manufacturing_agent.data import retrieval as retrieval_data
 from manufacturing_agent.data.retrieval import get_production_data
 from manufacturing_agent.domain import registry
+from manufacturing_agent.app.ui_renderer import build_retry_question_suggestions
 from manufacturing_agent.services import parameter_service, request_context, response_service, retrieval_planner
 from manufacturing_agent.services.merge_service import build_analysis_base_table
 from manufacturing_agent.services.query_mode import (
@@ -218,6 +219,46 @@ def test_langflow_full_workflow_returns_result_payload(monkeypatch):
 
 def test_langflow_component_module_imports_without_langflow_installed():
     assert ManufacturingAgentComponent.name == "manufacturing_agent_component"
+
+
+def test_build_retry_question_suggestions_recommends_grouped_retry_for_column_error():
+    suggestions = build_retry_question_suggestions(
+        "오늘 DA공정에서 DDR5제품의 생산 달성율을 공정별로 알려줘",
+        "요청한 컬럼 OPER_NAME 을(를) 현재 테이블에서 찾을 수 없습니다.",
+    )
+
+    assert suggestions
+    assert any("공정별" in item or "MODE별" in item for item in suggestions)
+
+
+def test_build_retry_question_suggestions_uses_failure_type_for_unknown_dataset():
+    suggestions = build_retry_question_suggestions(
+        "이상한 질문",
+        "무슨 데이터를 조회해야 할지 모르겠습니다.",
+        failure_type="unknown_dataset",
+    )
+
+    assert suggestions
+    assert any("생산량" in item or "목표" in item for item in suggestions)
+
+
+def test_run_agent_with_progress_reports_real_steps(monkeypatch):
+    _stub_llms(monkeypatch)
+
+    progress_events = []
+
+    result = run_agent_with_progress(
+        user_input="today DA process DDR5 production",
+        chat_history=[],
+        context={},
+        current_data=None,
+        progress_callback=lambda title, detail: progress_events.append((title, detail)),
+    )
+
+    assert result["tool_results"]
+    assert progress_events
+    assert progress_events[0][0] == "1/3 파라미터 해석중"
+    assert any(title == "2/3 데이터 조회중" for title, _detail in progress_events)
 
 
 def test_sanitize_markdown_text_preserves_numeric_ranges_without_strikethrough():

@@ -1,11 +1,14 @@
 import streamlit as st
 
-from manufacturing_agent.agent import run_agent
+from manufacturing_agent.agent import run_agent_with_progress
 from manufacturing_agent.app.ui_domain_knowledge import render_domain_knowledge_page, render_domain_registry_summary_card
 from manufacturing_agent.app.ui_renderer import (
+    build_retry_question_suggestions,
     has_active_context,
     init_session_state,
     render_context,
+    render_question_guide_and_examples,
+    render_retry_question_suggestions,
     render_tool_results,
     reset_chat_session,
     reset_filter_session,
@@ -23,19 +26,30 @@ def _get_saved_chat_history():
 
 def _render_saved_chat_history() -> None:
     engineer_mode = bool(st.session_state.get("engineer_mode", False))
-    for message in st.session_state.messages:
+    for index, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
             st.markdown(sanitize_markdown_text(message["content"]))
             if message.get("tool_results"):
                 render_tool_results(message["tool_results"], engineer_mode=engineer_mode)
+            if message.get("retry_suggestions"):
+                selected_retry = render_retry_question_suggestions(
+                    message.get("source_user_input", ""),
+                    message.get("content", ""),
+                    key_prefix=f"saved_retry_{index}",
+                    failure_type=message.get("failure_type", ""),
+                )
+                if selected_retry:
+                    st.session_state.queued_user_input = selected_retry
+                    st.rerun()
 
 
-def _run_chat_turn(user_input: str):
-    result = run_agent(
+def _run_chat_turn(user_input: str, progress_callback=None):
+    result = run_agent_with_progress(
         user_input=user_input,
         chat_history=_get_saved_chat_history(),
         context=st.session_state.context,
         current_data=st.session_state.current_data,
+        progress_callback=progress_callback,
     )
 
     tool_results = result.get("tool_results", [])
@@ -111,9 +125,19 @@ def _render_chat_page() -> None:
     _render_reset_controls()
     render_domain_registry_summary_card()
     render_context()
+    selected_example = render_question_guide_and_examples()
+    if selected_example:
+        st.session_state.queued_user_input = selected_example
+        st.rerun()
     _render_saved_chat_history()
 
-    user_input = st.chat_input("예: 오늘 XX공정에서 MODE별 생산량 보여줘")
+    queued_input = str(st.session_state.get("queued_user_input", "") or "")
+    if queued_input:
+        st.session_state.queued_user_input = ""
+
+    user_input = st.chat_input("예: 오늘 DA공정에서 DDR5제품의 생산 달성율을 공정별로 알려줘")
+    if not user_input and queued_input:
+        user_input = queued_input
     if not user_input:
         return
 
@@ -123,8 +147,14 @@ def _render_chat_page() -> None:
 
     with st.chat_message("assistant"):
         with st.status("질문을 분석하고 필요한 데이터를 찾는 중입니다.", expanded=True) as status:
-            st.write("질문 의도를 해석하는 중")
-            result = _run_chat_turn(user_input)
+            progress_placeholder = st.empty()
+            progress_lines = []
+
+            def _update_progress(title: str, detail: str) -> None:
+                progress_lines.append(f"- **{title}**: {detail}")
+                progress_placeholder.markdown("\n".join(progress_lines))
+
+            result = _run_chat_turn(user_input, progress_callback=_update_progress)
             response = sanitize_markdown_text(result.get("response", "응답을 생성하지 못했습니다."))
             tool_results = result.get("tool_results", [])
             engineer_mode = bool(st.session_state.get("engineer_mode", False))
@@ -137,12 +167,32 @@ def _render_chat_page() -> None:
         rendered_response = st.write_stream(_stream_response_text(response))
         if tool_results:
             render_tool_results(tool_results, engineer_mode=engineer_mode)
+        failure_type = str(result.get("failure_type", "") or "")
+        retry_suggestions = build_retry_question_suggestions(user_input, response, failure_type=failure_type)
+        should_show_retry = bool(result.get("failure_type")) or any(
+            token in response for token in ["찾을 수 없습니다", "병합", "N:M", "날짜", "실패", "없습니다"]
+        )
+        if should_show_retry:
+            selected_retry = render_retry_question_suggestions(
+                user_input,
+                response,
+                key_prefix=f"live_retry_{len(st.session_state.messages)}",
+                failure_type=failure_type,
+            )
+            if selected_retry:
+                st.session_state.queued_user_input = selected_retry
+                st.rerun()
+        else:
+            retry_suggestions = []
 
     st.session_state.messages.append(
         {
             "role": "assistant",
             "content": sanitize_markdown_text(rendered_response if isinstance(rendered_response, str) else response),
             "tool_results": tool_results,
+            "source_user_input": user_input,
+            "failure_type": failure_type,
+            "retry_suggestions": retry_suggestions if should_show_retry else [],
         }
     )
 

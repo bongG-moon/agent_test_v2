@@ -6,6 +6,14 @@ import pandas as pd
 import streamlit as st
 
 from ..shared.number_format import format_rows_for_display
+from ..shared.filter_utils import normalize_text
+
+
+EXAMPLE_QUESTIONS = [
+    "오늘 DA공정 생산량 알려줘",
+    "오늘 WB공정 생산 달성율을 MODE별로 알려줘",
+    "오늘 DDR5 제품 WIP 보여줘",
+]
 
 
 def empty_context() -> Dict[str, Any]:
@@ -53,6 +61,8 @@ def init_session_state() -> None:
         st.session_state.context = empty_context()
     if "engineer_mode" not in st.session_state:
         st.session_state.engineer_mode = False
+    if "queued_user_input" not in st.session_state:
+        st.session_state.queued_user_input = ""
 
 
 def format_display_dataframe(rows: List[Dict[str, Any]]) -> pd.DataFrame:
@@ -124,6 +134,127 @@ def render_context() -> None:
             active.append(f"{label}: {rendered}")
     if active:
         st.info("Current query context | " + " / ".join(active))
+
+
+def render_question_guide_and_examples(key_prefix: str = "question_guide") -> str:
+    """질문 작성 가이드와 예시 버튼을 함께 보여주고, 선택한 예시 질문을 돌려준다."""
+
+    with st.container(border=True):
+        st.markdown("**질문 작성 가이드**")
+        st.caption("날짜 + 공정 + 제품/조건 + 보고 싶은 값 + 기준(공정별/MODE별) 순서로 질문하면 가장 안정적입니다.")
+        st.markdown("예: `오늘 DA공정에서 DDR5제품의 생산 달성율을 공정별로 알려줘`")
+        st.markdown("**예시 질문**")
+
+        selected_question = ""
+        columns = st.columns(len(EXAMPLE_QUESTIONS))
+        for index, question in enumerate(EXAMPLE_QUESTIONS):
+            if columns[index].button(
+                question,
+                key=f"{key_prefix}_{index}",
+                use_container_width=True,
+            ):
+                selected_question = question
+        return selected_question
+
+
+def _dedupe_questions(questions: List[str]) -> List[str]:
+    ordered: List[str] = []
+    for question in questions:
+        cleaned = str(question).strip()
+        if cleaned and cleaned not in ordered:
+            ordered.append(cleaned)
+    return ordered
+
+
+def build_retry_question_suggestions(user_input: str, response_text: str, failure_type: str = "") -> List[str]:
+    """에러나 애매한 응답일 때 다시 물어보기 좋은 질문 예시를 만든다."""
+
+    normalized_input = normalize_text(user_input)
+    normalized_response = normalize_text(response_text)
+    suggestions: List[str] = []
+
+    if failure_type == "missing_date" or "날짜" in response_text or "date" in normalized_response:
+        suggestions.extend(
+            [
+                "오늘 DA공정 생산량 알려줘",
+                "오늘 WB공정 생산 달성율을 MODE별로 알려줘",
+                "어제 DDR5 제품 WIP 보여줘",
+            ]
+        )
+
+    if "찾을 수 없습니다" in response_text or "컬럼" in response_text:
+        suggestions.extend(
+            [
+                "오늘 DA공정에서 DDR5제품의 생산 달성율을 공정별로 알려줘",
+                "오늘 WB공정에서 생산 달성율을 MODE별로 알려줘",
+                "오늘 DA공정 생산량을 MODE별로 알려줘",
+            ]
+        )
+
+    if failure_type == "merge_or_analysis_base_failed" or "n:m" in normalized_response or "병합" in response_text:
+        suggestions.extend(
+            [
+                "오늘 WB공정에서 생산 달성율을 MODE별로 알려줘",
+                "오늘 DA공정에서 DDR5제품의 생산 포화율을 공정별로 알려줘",
+                "오늘 생산량과 목표를 MODE별로 비교해줘",
+            ]
+        )
+
+    if failure_type == "unknown_dataset":
+        suggestions.extend(
+            [
+                "오늘 생산량 보여줘",
+                "오늘 목표와 재공을 MODE별로 보여줘",
+            ]
+        )
+
+    if failure_type == "retrieval_failed":
+        suggestions.extend(
+            [
+                "오늘 DA공정 생산량만 먼저 보여줘",
+                "오늘 WB공정 목표만 먼저 보여줘",
+            ]
+        )
+
+    if "달성" in user_input:
+        suggestions.extend(
+            [
+                "오늘 DA공정에서 DDR5제품의 생산 달성율을 공정별로 알려줘",
+                "오늘 WB공정에서 생산 달성율을 MODE별로 알려줘",
+            ]
+        )
+    elif "wip" in normalized_input or "재공" in user_input:
+        suggestions.extend(
+            [
+                "오늘 DDR5 제품 WIP 보여줘",
+                "오늘 DA공정 WIP를 공정별로 알려줘",
+            ]
+        )
+
+    if not suggestions:
+        suggestions.extend(EXAMPLE_QUESTIONS)
+
+    return _dedupe_questions(suggestions)[:3]
+
+
+def render_retry_question_suggestions(user_input: str, response_text: str, key_prefix: str, failure_type: str = "") -> str:
+    """실패 시 다시 시도해볼 질문 버튼을 보여주고 선택한 질문을 돌려준다."""
+
+    suggestions = build_retry_question_suggestions(user_input, response_text, failure_type=failure_type)
+    if not suggestions:
+        return ""
+
+    st.warning("다시 물어보기 예시")
+    selected_question = ""
+    columns = st.columns(len(suggestions))
+    for index, question in enumerate(suggestions):
+        if columns[index].button(
+            question,
+            key=f"{key_prefix}_{index}",
+            use_container_width=True,
+        ):
+            selected_question = question
+    return selected_question
 
 
 def render_analysis_summary(result: Dict[str, Any], row_count: int) -> None:

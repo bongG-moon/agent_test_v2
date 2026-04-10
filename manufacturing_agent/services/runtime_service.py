@@ -156,6 +156,7 @@ def run_analysis_after_retrieval(
         "tool_results": tool_results,
         "current_data": primary_source,
         "extracted_params": extracted_params,
+        "failure_type": "post_analysis_failed",
         "awaiting_analysis_choice": True,
     }
 
@@ -185,6 +186,7 @@ def run_multi_retrieval_jobs(
             "tool_results": source_results,
             "current_data": current_data,
             "extracted_params": jobs[0]["params"] if jobs else {},
+            "failure_type": "retrieval_failed",
             "awaiting_analysis_choice": bool(has_current_data(current_data)),
         }
 
@@ -206,6 +208,7 @@ def run_multi_retrieval_jobs(
                 "tool_results": mark_primary_result([*source_results, overview_result], primary_index=len(source_results)),
                 "current_data": overview_result,
                 "extracted_params": jobs[0]["params"] if jobs else {},
+                "failure_type": "merge_or_analysis_base_failed",
                 "awaiting_analysis_choice": True,
             }
 
@@ -250,6 +253,7 @@ def run_multi_retrieval_jobs(
             "tool_results": mark_primary_result([*source_results, overview_result], primary_index=len(source_results)),
             "current_data": overview_result,
             "extracted_params": jobs[0]["params"] if jobs else {},
+            "failure_type": "post_analysis_failed",
             "awaiting_analysis_choice": True,
         }
 
@@ -321,6 +325,7 @@ def run_retrieval(
             "tool_results": [],
             "current_data": current_data,
             "extracted_params": extracted_params,
+            "failure_type": "unknown_dataset",
             "awaiting_analysis_choice": bool(has_current_data(current_data)),
         }
 
@@ -332,6 +337,7 @@ def run_retrieval(
             "tool_results": [],
             "current_data": current_data,
             "extracted_params": extracted_params,
+            "failure_type": "unknown_dataset",
             "awaiting_analysis_choice": bool(has_current_data(current_data)),
         }
     if missing_date_jobs:
@@ -340,6 +346,7 @@ def run_retrieval(
             "tool_results": [],
             "current_data": current_data,
             "extracted_params": extracted_params,
+            "failure_type": "missing_date",
             "awaiting_analysis_choice": bool(has_current_data(current_data)),
         }
 
