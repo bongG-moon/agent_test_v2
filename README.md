@@ -31,6 +31,7 @@ app.py
 - [docs/BEGINNER_LEARNING_PATH.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/BEGINNER_LEARNING_PATH.md)
 - [docs/LANGFLOW_VERSION.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/LANGFLOW_VERSION.md)
 - [docs/LANGFLOW_CANVAS_EXAMPLE.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/docs/LANGFLOW_CANVAS_EXAMPLE.md)
+- [langflow_components/README.md](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/README.md)
 
 ## 실행
 

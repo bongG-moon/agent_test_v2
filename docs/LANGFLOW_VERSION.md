@@ -81,3 +81,23 @@ LangGraph와 Langflow는 가능한 한 같은 상태 구조를 사용합니다.
 - [components.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_version/components.py)
 - [workflow.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_version/workflow.py)
 - [Langflow custom components docs](https://docs.langflow.org/components-custom-components)
+
+## LANGFLOW_COMPONENTS_PATH 설정
+
+Langflow에서 바로 커스텀 컴포넌트를 읽어오려면 아래 경로를 `LANGFLOW_COMPONENTS_PATH` 로 잡으면 됩니다.
+
+```powershell
+$env:LANGFLOW_COMPONENTS_PATH="C:\Users\qkekt\Desktop\agent_langgraph_v2\langflow_components"
+```
+
+실제 Langflow 로딩용 폴더:
+
+- [langflow_components](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components)
+- [manufacturing_components.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/manufacturing_components.py)
+
+이 로딩용 폴더는 Langflow가 요구하는 폴더 구조만 담당하고,
+실제 구현은 아래 공통 모듈을 그대로 재사용합니다.
+
+- [components.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_version/components.py)
+- [workflow.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_version/workflow.py)
+- [manufacturing_agent](/C:/Users/qkekt/Desktop/agent_langgraph_v2/manufacturing_agent)

@@ -1,4 +1,5 @@
 import json
+import importlib.util
 import threading
 import time
 from pathlib import Path
@@ -221,6 +222,18 @@ def test_langflow_full_workflow_returns_result_payload(monkeypatch):
 
 def test_langflow_component_module_imports_without_langflow_installed():
     assert ManufacturingAgentComponent.name == "manufacturing_agent_component"
+
+
+def test_langflow_components_path_loader_imports_component_classes():
+    loader_path = Path(__file__).resolve().parents[1] / "langflow_components" / "manufacturing_agent" / "manufacturing_components.py"
+    spec = importlib.util.spec_from_file_location("manufacturing_components_loader", loader_path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec is not None
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    assert module.ManufacturingAgentComponent.name == "manufacturing_agent_component"
+    assert module.ResolveRequestComponent.name == "resolve_manufacturing_request"
 
 
 def test_build_retry_question_suggestions_recommends_grouped_retry_for_column_error():

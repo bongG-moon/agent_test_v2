@@ -86,3 +86,19 @@ flowchart LR
 2. `Plan Manufacturing Retrieval`에서 `retrieval_plan.dataset_keys` 확인
 3. `Finish Manufacturing Result`에서 `tool_results` 확인
 4. 같은 질문으로 LangGraph 버전 결과와 비교
+## 실제 로딩 경로
+
+Langflow에서 커스텀 컴포넌트를 자동으로 보이게 하려면 아래 폴더를 `LANGFLOW_COMPONENTS_PATH` 로 설정합니다.
+
+```powershell
+$env:LANGFLOW_COMPONENTS_PATH="C:\Users\qkekt\Desktop\agent_langgraph_v2\langflow_components"
+```
+
+Langflow가 직접 읽는 파일:
+
+- [manufacturing_components.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/manufacturing_components.py)
+
+이 파일은 저장소 루트를 import path에 추가한 뒤,
+아래 실제 컴포넌트 구현을 다시 노출하는 역할만 합니다.
+
+- [components.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_version/components.py)
