@@ -253,6 +253,12 @@ def test_langflow_components_path_builds_visible_custom_components():
     loaded_names = set(component_dict["manufacturing_agent"].keys())
     assert "manufacturing_agent_component" in loaded_names
     assert "resolve_manufacturing_request" in loaded_names
+    assert "extract_manufacturing_params" in loaded_names
+    assert "decide_manufacturing_query_mode" in loaded_names
+    assert "plan_manufacturing_datasets" in loaded_names
+    assert "build_manufacturing_jobs" in loaded_names
+    assert "execute_manufacturing_jobs" in loaded_names
+    assert "run_manufacturing_followup" in loaded_names
 
 
 def test_build_retry_question_suggestions_recommends_grouped_retry_for_column_error():
