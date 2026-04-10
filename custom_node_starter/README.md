@@ -124,7 +124,39 @@ Langflow 로더는 Python 파일을 직접 파싱합니다.
 
 1. UI에서 [minimal_custom_component.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/custom_node_starter/ui_templates/minimal_custom_component.py)로 테스트
 2. 그 다음 [manufacturing_param_summary.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/custom_node_starter/ui_templates/manufacturing_param_summary.py)로 state 입력형 노드 테스트
-3. 잘 되면 파일 기반 템플릿으로 옮겨 프로젝트 폴더에서 관리
+3. 실제 예시로 [manufacturing_question_guide.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/custom_node_starter/ui_templates/manufacturing_question_guide.py)를 UI에서 붙여넣어 보기
+4. 잘 되면 파일 기반 템플릿으로 옮겨 프로젝트 폴더에서 관리
+
+## 실제 예시 하나
+
+이번 폴더에는 "질문 보정 노드" 예시도 넣어뒀습니다.
+
+- UI용: [manufacturing_question_guide.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/custom_node_starter/ui_templates/manufacturing_question_guide.py)
+- 파일용: [manufacturing_question_guide.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/custom_node_starter/file_templates/manufacturing_custom/manufacturing_question_guide.py)
+
+이 노드는 사용자의 제조 질문을 보고 아래 항목이 빠졌는지 간단히 점검합니다.
+
+- 날짜
+- 공정
+- 제품
+- 보고 싶은 값
+- 기준(`MODE별`, `공정별` 같은 그룹 기준)
+
+그리고 더 좋은 질문 예시를 텍스트로 돌려줍니다.
+
+예:
+
+- 입력: `DDR5 달성률 보여줘`
+- 출력:
+  - 빠진 항목: 날짜, 공정, 기준
+  - 추천 질문: `오늘 DA공정에서 DDR5제품의 생산 달성율을 MODE별로 알려줘`
+
+## 이 예시를 왜 추천하는가
+
+- 외부 API나 복잡한 state 없이도 바로 테스트 가능
+- 입력 1개, 출력 1개라 구조가 단순함
+- 실제 제조 챗봇에서 바로 쓸 수 있는 보조 노드 형태
+- 나중에 프롬프트 노드나 에이전트 앞단에 붙이기 쉬움
 
 ## 공식 참고 자료
 
