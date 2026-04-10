@@ -1,5 +1,9 @@
 """원천 데이터 조회 계획과 실제 실행 job 생성을 담당하는 서비스."""
 
+import copy
+import json
+import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
@@ -39,6 +43,8 @@ EXPLICIT_DATASET_KEYWORDS = {
     "recipe": ["레시피", "공정 조건", "recipe"],
     "lot_trace": ["lot", "로트", "이력", "추적", "trace"],
 }
+
+RETRIEVAL_RESULT_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
 def _normalize_merge_hints(raw_hints: Any) -> Dict[str, Any]:
@@ -386,28 +392,65 @@ def build_retrieval_jobs(user_input: str, extracted_params: Dict[str, Any], retr
     return jobs
 
 
+def _build_retrieval_cache_key(dataset_key: str, params: Dict[str, Any], result_label: str | None) -> str:
+    """같은 dataset/필터 조합을 캐시에서 재사용할 수 있게 고유 key를 만든다."""
+
+    normalized_params = json.dumps(params or {}, ensure_ascii=False, sort_keys=True)
+    return f"{dataset_key}|{result_label or ''}|{normalized_params}"
+
+
+def _clone_cached_result(result: Dict[str, Any]) -> Dict[str, Any]:
+    """캐시 객체를 그대로 돌려주지 않도록 깊은 복사본을 만든다."""
+
+    return copy.deepcopy(result)
+
+
+def _execute_single_retrieval_job(job: Dict[str, Any], repeated_dataset_keys: bool, index: int) -> Dict[str, Any]:
+    """job 하나를 실행하고 source tag, cache metadata까지 정리한다."""
+
+    cache_key = _build_retrieval_cache_key(job["dataset_key"], job["params"], job.get("result_label"))
+    cached_result = RETRIEVAL_RESULT_CACHE.get(cache_key)
+    if cached_result is not None:
+        result = _clone_cached_result(cached_result)
+        result["from_cache"] = True
+        return result
+
+    result = execute_retrieval_tools([job["dataset_key"]], job["params"])[0]
+    result_label = job.get("result_label")
+    if result_label:
+        result["result_label"] = result_label
+    if repeated_dataset_keys and result_label:
+        result["dataset_key"] = f"{job['dataset_key']}__{result_label}"
+        dataset_label = str(result.get("dataset_label", job["dataset_key"]))
+        result["dataset_label"] = f"{dataset_label} ({result_label})"
+    normalized = re.sub(r"\W+", "_", str(result.get("result_label") or result.get("dataset_label") or result.get("tool_name", ""))).strip("_")
+    result["source_tag"] = normalized or f"source_{index}"
+    result["from_cache"] = False
+    RETRIEVAL_RESULT_CACHE[cache_key] = _clone_cached_result(result)
+    return result
+
+
 def execute_retrieval_jobs(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """job 목록을 실제 retrieval 함수 실행 결과로 바꾼다."""
 
-    import re
+    if not jobs:
+        return []
 
-    results: List[Dict[str, Any]] = []
     repeated_dataset_keys = len({job["dataset_key"] for job in jobs}) != len(jobs)
+    if len(jobs) == 1:
+        return [_execute_single_retrieval_job(jobs[0], repeated_dataset_keys, 1)]
 
-    for index, job in enumerate(jobs, start=1):
-        result = execute_retrieval_tools([job["dataset_key"]], job["params"])[0]
-        result_label = job.get("result_label")
-        if result_label:
-            result["result_label"] = result_label
-        if repeated_dataset_keys and result_label:
-            result["dataset_key"] = f"{job['dataset_key']}__{result_label}"
-            dataset_label = str(result.get("dataset_label", job["dataset_key"]))
-            result["dataset_label"] = f"{dataset_label} ({result_label})"
-        normalized = re.sub(r"\W+", "_", str(result.get("result_label") or result.get("dataset_label") or result.get("tool_name", ""))).strip("_")
-        result["source_tag"] = normalized or f"source_{index}"
-        results.append(result)
+    indexed_results: List[tuple[int, Dict[str, Any]]] = []
+    with ThreadPoolExecutor(max_workers=min(4, len(jobs))) as executor:
+        futures = {
+            executor.submit(_execute_single_retrieval_job, job, repeated_dataset_keys, index): index
+            for index, job in enumerate(jobs, start=1)
+        }
+        for future, index in futures.items():
+            indexed_results.append((index, future.result()))
 
-    return results
+    indexed_results.sort(key=lambda item: item[0])
+    return [result for _index, result in indexed_results]
 
 
 def should_retry_retrieval_plan(

@@ -75,7 +75,7 @@ def run_agent_with_progress(
     state.update(resolve_request_node(state))
 
     if state.get("query_mode") == "followup_transform" and isinstance(state.get("current_data"), dict):
-        notify("3/3 병합/분석중", "현재 결과를 다시 정리하고 분석하고 있습니다.")
+        notify("3/3 병합/분석중", "현재 결과 테이블을 그대로 재사용해서 더 빠르게 다시 분석하고 있습니다.")
         state.update(followup_analysis_node(state))
         return dict(state.get("result", {}))
 
@@ -86,7 +86,7 @@ def run_agent_with_progress(
 
     jobs = state.get("retrieval_jobs", [])
     if len(jobs) > 1:
-        notify("3/3 병합/분석중", "여러 데이터셋을 조회한 뒤 병합과 분석을 수행하고 있습니다.")
+        notify("3/3 병합/분석중", "여러 데이터셋을 함께 불러온 뒤 병렬 조회 결과를 병합하고 분석하고 있습니다.")
         state.update(multi_retrieval_node(state))
     else:
         notify("3/3 병합/분석중", "데이터를 조회하고 필요한 후처리와 분석을 수행하고 있습니다.")

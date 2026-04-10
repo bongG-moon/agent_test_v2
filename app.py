@@ -30,7 +30,10 @@ def _render_saved_chat_history() -> None:
         with st.chat_message(message["role"]):
             st.markdown(sanitize_markdown_text(message["content"]))
             if message.get("tool_results"):
-                render_tool_results(message["tool_results"], engineer_mode=engineer_mode)
+                with st.expander("상세 조회 결과", expanded=False):
+                    if any(result.get("from_cache") for result in message.get("tool_results", [])):
+                        st.caption("같은 조건의 조회 결과를 캐시에서 다시 사용했습니다.")
+                    render_tool_results(message["tool_results"], engineer_mode=engineer_mode)
             if message.get("show_retry_guidance"):
                 render_retry_question_guidance(
                     message.get("source_user_input", ""),
@@ -153,7 +156,10 @@ def _render_chat_page() -> None:
 
         rendered_response = st.write_stream(_stream_response_text(response))
         if tool_results:
-            render_tool_results(tool_results, engineer_mode=engineer_mode)
+            with st.expander("상세 조회 결과", expanded=False):
+                if any(result.get("from_cache") for result in tool_results):
+                    st.caption("같은 조건의 조회 결과를 캐시에서 다시 사용했습니다.")
+                render_tool_results(tool_results, engineer_mode=engineer_mode)
         failure_type = str(result.get("failure_type", "") or "")
         retry_suggestions = build_retry_question_suggestions(user_input, response, failure_type=failure_type)
         should_show_retry = bool(result.get("failure_type")) or any(

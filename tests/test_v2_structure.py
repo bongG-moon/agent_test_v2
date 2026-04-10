@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 from pathlib import Path
 
 from langflow_version.components import ManufacturingAgentComponent
@@ -259,6 +261,66 @@ def test_run_agent_with_progress_reports_real_steps(monkeypatch):
     assert progress_events
     assert progress_events[0][0] == "1/3 파라미터 해석중"
     assert any(title == "2/3 데이터 조회중" for title, _detail in progress_events)
+
+
+def test_execute_retrieval_jobs_reuses_cached_results(monkeypatch):
+    params = {"date": "20260410", "process_name": ["D/A1"]}
+    call_count = {"value": 0}
+
+    def fake_execute_retrieval_tools(dataset_keys, job_params):
+        call_count["value"] += 1
+        return [
+            {
+                "success": True,
+                "tool_name": f"get_{dataset_keys[0]}",
+                "dataset_key": dataset_keys[0],
+                "dataset_label": dataset_keys[0],
+                "data": [{"WORK_DT": job_params["date"], "production": 100}],
+                "summary": "ok",
+            }
+        ]
+
+    retrieval_planner.RETRIEVAL_RESULT_CACHE.clear()
+    monkeypatch.setattr(retrieval_planner, "execute_retrieval_tools", fake_execute_retrieval_tools)
+
+    first = retrieval_planner.execute_retrieval_jobs([{"dataset_key": "production", "params": params, "result_label": None}])[0]
+    second = retrieval_planner.execute_retrieval_jobs([{"dataset_key": "production", "params": params, "result_label": None}])[0]
+
+    assert call_count["value"] == 1
+    assert first["from_cache"] is False
+    assert second["from_cache"] is True
+
+
+def test_execute_retrieval_jobs_runs_multi_dataset_requests_in_parallel(monkeypatch):
+    thread_ids = set()
+
+    def fake_execute_retrieval_tools(dataset_keys, job_params):
+        time.sleep(0.05)
+        thread_ids.add(threading.get_ident())
+        dataset_key = dataset_keys[0]
+        return [
+            {
+                "success": True,
+                "tool_name": f"get_{dataset_key}",
+                "dataset_key": dataset_key,
+                "dataset_label": dataset_key,
+                "data": [{"WORK_DT": job_params["date"], dataset_key: 1}],
+                "summary": dataset_key,
+            }
+        ]
+
+    retrieval_planner.RETRIEVAL_RESULT_CACHE.clear()
+    monkeypatch.setattr(retrieval_planner, "execute_retrieval_tools", fake_execute_retrieval_tools)
+
+    jobs = [
+        {"dataset_key": "production", "params": {"date": "20260410"}, "result_label": None},
+        {"dataset_key": "target", "params": {"date": "20260410"}, "result_label": None},
+        {"dataset_key": "wip", "params": {"date": "20260410"}, "result_label": None},
+    ]
+    results = retrieval_planner.execute_retrieval_jobs(jobs)
+
+    assert [result["dataset_key"] for result in results] == ["production", "target", "wip"]
+    assert len(thread_ids) >= 2
 
 
 def test_sanitize_markdown_text_preserves_numeric_ranges_without_strikethrough():

@@ -132,6 +132,7 @@ def render_context() -> None:
             active.append(f"{label}: {rendered}")
     if active:
         st.info("Current query context | " + " / ".join(active))
+        st.caption("현재 표를 기준으로 다시 질문하면 더 빠릅니다. 예: `MODE별로 다시 보여줘`, `상위 5개만 보여줘`, `공정별로 정렬해줘`")
 
 
 def render_question_guide() -> None:
