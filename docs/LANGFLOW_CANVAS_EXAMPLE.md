@@ -96,7 +96,12 @@ $env:LANGFLOW_COMPONENTS_PATH="C:\Users\qkekt\Desktop\agent_langgraph_v2\langflo
 
 Langflow가 직접 읽는 파일:
 
-- [manufacturing_components.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/manufacturing_components.py)
+- [manufacturing_agent_component.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/manufacturing_agent_component.py)
+- [manufacturing_state_input.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/manufacturing_state_input.py)
+- [resolve_manufacturing_request.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/resolve_manufacturing_request.py)
+- [plan_manufacturing_retrieval.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/plan_manufacturing_retrieval.py)
+- [run_manufacturing_branch.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/run_manufacturing_branch.py)
+- [finish_manufacturing_result.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/finish_manufacturing_result.py)
 
 이 파일은 저장소 루트를 import path에 추가한 뒤,
 아래 실제 컴포넌트 구현을 다시 노출하는 역할만 합니다.

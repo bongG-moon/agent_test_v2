@@ -12,8 +12,18 @@ $env:LANGFLOW_COMPONENTS_PATH="C:\Users\qkekt\Desktop\agent_langgraph_v2\langflo
 
 - `manufacturing_agent/`
   - Langflow가 읽는 카테고리 폴더
-- `manufacturing_agent/manufacturing_components.py`
-  - 실제 커스텀 컴포넌트 진입점
+- `manufacturing_agent/manufacturing_agent_component.py`
+  - Manufacturing Agent 단일 실행 컴포넌트
+- `manufacturing_agent/manufacturing_state_input.py`
+  - 입력 state 생성 컴포넌트
+- `manufacturing_agent/resolve_manufacturing_request.py`
+  - 질문 해석 컴포넌트
+- `manufacturing_agent/plan_manufacturing_retrieval.py`
+  - 조회 계획 컴포넌트
+- `manufacturing_agent/run_manufacturing_branch.py`
+  - 분기 실행 컴포넌트
+- `manufacturing_agent/finish_manufacturing_result.py`
+  - 결과 정리 컴포넌트
 - `manufacturing_agent/__init__.py`
   - 컴포넌트 export 목록
 

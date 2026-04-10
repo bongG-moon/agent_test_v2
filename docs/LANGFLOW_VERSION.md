@@ -93,7 +93,12 @@ $env:LANGFLOW_COMPONENTS_PATH="C:\Users\qkekt\Desktop\agent_langgraph_v2\langflo
 실제 Langflow 로딩용 폴더:
 
 - [langflow_components](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components)
-- [manufacturing_components.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/manufacturing_components.py)
+- [manufacturing_agent_component.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/manufacturing_agent_component.py)
+- [manufacturing_state_input.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/manufacturing_state_input.py)
+- [resolve_manufacturing_request.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/resolve_manufacturing_request.py)
+- [plan_manufacturing_retrieval.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/plan_manufacturing_retrieval.py)
+- [run_manufacturing_branch.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/run_manufacturing_branch.py)
+- [finish_manufacturing_result.py](/C:/Users/qkekt/Desktop/agent_langgraph_v2/langflow_components/manufacturing_agent/finish_manufacturing_result.py)
 
 이 로딩용 폴더는 Langflow가 요구하는 폴더 구조만 담당하고,
 실제 구현은 아래 공통 모듈을 그대로 재사용합니다.

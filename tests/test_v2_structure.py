@@ -4,6 +4,8 @@ import threading
 import time
 from pathlib import Path
 
+import pytest
+
 from langflow_version.components import ManufacturingAgentComponent
 from langflow_version.workflow import build_initial_state, resolve_request_step, run_langflow_workflow
 from manufacturing_agent.agent import extract_params_component, run_agent, run_agent_with_progress
@@ -225,7 +227,10 @@ def test_langflow_component_module_imports_without_langflow_installed():
 
 
 def test_langflow_components_path_loader_imports_component_classes():
-    loader_path = Path(__file__).resolve().parents[1] / "langflow_components" / "manufacturing_agent" / "manufacturing_components.py"
+    if importlib.util.find_spec("lfx") is None:
+        pytest.skip("lfx is not installed in this local test environment")
+
+    loader_path = Path(__file__).resolve().parents[1] / "langflow_components" / "manufacturing_agent" / "manufacturing_agent_component.py"
     spec = importlib.util.spec_from_file_location("manufacturing_components_loader", loader_path)
     module = importlib.util.module_from_spec(spec)
     assert spec is not None
@@ -233,7 +238,21 @@ def test_langflow_components_path_loader_imports_component_classes():
     spec.loader.exec_module(module)
 
     assert module.ManufacturingAgentComponent.name == "manufacturing_agent_component"
-    assert module.ResolveRequestComponent.name == "resolve_manufacturing_request"
+
+
+def test_langflow_components_path_builds_visible_custom_components():
+    if importlib.util.find_spec("lfx") is None:
+        pytest.skip("lfx is not installed in this local test environment")
+
+    from lfx.custom.directory_reader.utils import build_custom_component_list_from_path
+
+    path = Path(__file__).resolve().parents[1] / "langflow_components"
+    component_dict = build_custom_component_list_from_path(str(path))
+
+    assert "manufacturing_agent" in component_dict
+    loaded_names = set(component_dict["manufacturing_agent"].keys())
+    assert "manufacturing_agent_component" in loaded_names
+    assert "resolve_manufacturing_request" in loaded_names
 
 
 def test_build_retry_question_suggestions_recommends_grouped_retry_for_column_error():
